@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info:
+  title: ' RO Water Purifier API'
+  version: 1.0.0
+  description: RO Water Purifier is a web-based platform that allows users to browse
+    and purchase RO water purifiers while also providing a seamless way to book certified
+    technicians for installation, maintenance, and service.
+paths: {}
+components: {}

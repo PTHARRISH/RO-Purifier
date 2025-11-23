@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "silk",
     "jazzmin",
     "rest_framework",
+    "drf_spectacular",
 ]
 
 MIDDLEWARE = [
@@ -146,3 +147,19 @@ EMAIL_USE_TLS = True
 EMAIL_PORT = config("EMAIL_PORT")
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": " RO Water Purifier API",
+    "DESCRIPTION": "RO Water Purifier is a web-based platform "
+    "that allows users to browse and purchase RO water purifiers "
+    "while also providing a seamless way to book certified technicians for installation, "
+    "maintenance, and service.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
