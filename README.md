@@ -228,24 +228,6 @@ EMAIL_HOST_USER=test@gmail.com
 EMAIL_HOST_PASSWORD=test
 ```
 
-SECRET_KEY=django-insecure-m72oe!!4!@1o)6b1-exojf1y1-4d+j%l+gmu5xv0dzf+a5ys$s
-DEBUG=True
-
-DB_NAME=RO_db
-DB_USER=postgres
-DB_PASSWORD=root
-DB_HOST=127.0.0.1
-DB_PORT=5432
-
-RATE_LIMIT_ANON=100/hour
-RATE_LIMIT_USER=1000/hour
-
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_HOST_USER=[test@gmail.com](mailto:test@gmail.com)
-EMAIL_HOST_PASSWORD=test
-
-```
 
 ---
 
@@ -262,4 +244,4 @@ This project is licensed under the MIT License.
 ## 📞 Support
 For any queries or issues, feel free to raise an issue in the repository.
 
-```
+
