@@ -9,7 +9,10 @@ dependencies = [
     "django-jazzmin>=3.0.1",
     "django-silk>=5.4.3",
     "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
     "drf-spectacular>=0.29.0",
+    "pillow>=12.0.0",
+    "psycopg2>=2.9.11",
     "python-decouple>=3.8",
     "ruff>=0.14.5",
 ]
@@ -34,7 +37,7 @@ select = ["E", "F", "I", "W", "D", "UP", "B", "DJ"]
 ignore = [
     "D100", "D104", 
     "D101", "D102", "D103",   
-    "D203", "D212",
+    "D203", "D212","D105",
    
 ]
 
