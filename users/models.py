@@ -9,7 +9,6 @@ class User(AbstractUser):
         ("admin", "Admin"),
         ("technician", "Technician"),
     ]
-    fullname = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     address = models.JSONField(blank=True, null=True)
     phone_no = models.CharField(max_length=20, blank=True, default="")
