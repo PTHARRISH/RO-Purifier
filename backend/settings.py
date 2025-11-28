@@ -106,7 +106,8 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": "django.contrib.auth.password_validation."
+        "UserAttributeSimilarityValidator",
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -153,7 +154,9 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
 }
 
 AUTH_USER_MODEL = "users.User"
@@ -162,8 +165,8 @@ SPECTACULAR_SETTINGS = {
     "TITLE": " RO Water Purifier API",
     "DESCRIPTION": "RO Water Purifier is a web-based platform "
     "that allows users to browse and purchase RO water purifiers "
-    "while also providing a seamless way to book certified technicians for installation, "
-    "maintenance, and service.",
+    "while also providing a seamless way to book certified technicians "
+    "for installation, maintenance, and service.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
