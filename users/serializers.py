@@ -3,6 +3,8 @@ import re
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from users.models import Booking, Profile
+
 User = get_user_model()
 
 
@@ -86,3 +88,109 @@ class LoginSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         return instance  # Login does not update objects
+
+
+class TechnicianSummarySerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username")
+    fullname = serializers.CharField(source="user.fullname")
+    avatar = serializers.SerializerMethodField()
+
+    avg_rating = serializers.FloatField()
+    total_bookings = serializers.IntegerField()
+    earnings = serializers.FloatField()
+    unique_users = serializers.IntegerField()
+
+    class Meta:
+        model = Profile
+        fields = [
+            "id",
+            "username",
+            "fullname",
+            "avatar",
+            "profile_status",
+            "years_experience",
+            "months_experience",
+            "avg_rating",
+            "total_bookings",
+            "unique_users",
+            "earnings",
+        ]
+
+    def get_avatar(self, obj):
+        return obj.avatar.url if obj.avatar else None
+
+
+class BookingDetailSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id",
+            "date_time_start",
+            "date_time_end",
+            "service_status",
+            "payment_done",
+            "price",
+            "address",
+            "user",
+        ]
+
+    def get_user(self, obj):
+        u = obj.user
+        return {"id": u.id, "username": u.username, "fullname": u.fullname}
+
+
+class AdminUserDetailSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+    total_bookings = serializers.IntegerField()
+    total_spent = serializers.FloatField()
+    last_booking = serializers.DateTimeField()
+    avg_rating = serializers.FloatField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "fullname",
+            "email",
+            "avatar",
+            "date_joined",
+            "total_bookings",
+            "total_spent",
+            "last_booking",
+            "avg_rating",
+        ]
+
+    def get_avatar(self, obj):
+        profile = getattr(obj, "profile", None)
+        return profile.avatar.url if profile and profile.avatar else None
+
+
+class UserBookingHistorySerializer(serializers.ModelSerializer):
+    technician = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id",
+            "service",
+            "service_status",
+            "price",
+            "payment_done",
+            "date_time_start",
+            "date_time_end",
+            "technician",
+        ]
+
+    def get_technician(self, obj):
+        if not obj.technician:
+            return None
+
+        t = obj.technician.user
+        return {
+            "id": t.id,
+            "username": t.username,
+            "fullname": t.fullname,
+        }

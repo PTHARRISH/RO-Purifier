@@ -1,14 +1,24 @@
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import get_user_model
+from django.db.models import Avg, Count, Max, Sum
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from users.permissions import IsAdminUser
-from users.serializers import LoginSerializer, RegisterSerializer
+from users.models import Booking, Profile
+from users.permissions import AdminUser
+from users.serializers import (
+    AdminUserDetailSerializer,
+    BookingDetailSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    TechnicianSummarySerializer,
+    UserBookingHistorySerializer,
+)
+from users.utils import paginate, parse_date_range
 
 User = get_user_model()
 
@@ -160,18 +170,111 @@ class LoginView(APIView):
 # Admin Views all user information including roles and technician details.
 
 
-class AdminUserListView(APIView):
-    permission_classes = [
-        IsAdminUser,
-    ]
+class AdminDashboardView(APIView):
+    permission_classes = [AdminUser]
 
     def get(self, request):
-        users = User.objects.all().values(
-            "id",
-            "username",
-            "email",
-            "mobile",
-            "fullname",
-            "role",
+        start, end = parse_date_range(request)
+        status_filter = request.GET.get("status")
+        total_users = User.objects.filter(role="user").count()
+        total_technicians = User.objects.filter(role="technician").count()
+        bookings_qs = Booking.objects.filter(date_time_start__range=[start, end])
+        if status_filter:
+            bookings_qs = bookings_qs.filter(service_status=status_filter)
+
+        total_bookings = bookings_qs.count()
+        total_earnings = bookings_qs.aggregate(total=Sum("price"))["total"] or 0
+
+        # ===== If technician detail is requested =====
+        tech_id = request.GET.get("technician_id")
+        if tech_id:
+            tech = Profile.objects.get(id=tech_id)
+            tech_bookings = Booking.objects.filter(technician=tech).order_by(
+                "-date_time_start"
+            )
+
+            page = paginate(request, tech_bookings)
+            serializer = BookingDetailSerializer(page["results"], many=True)
+
+            return Response(
+                {
+                    "technician": tech.user.username,
+                    "total": page["total"],
+                    "page": page["page"],
+                    "page_size": page["page_size"],
+                    "results": serializer.data,
+                }
+            )
+
+        # ---------- 3. TECHNICIAN SUMMARY ----------
+        tech_qs = Profile.objects.select_related("user").annotate(
+            avg_rating=Avg("reviews__rating"),
+            total_bookings=Count("bookings"),
+            earnings=Sum("bookings__price"),
+            unique_users=Count("bookings__user", distinct=True),
         )
-        return Response({"users": list(users)}, status=status.HTTP_200_OK)
+
+        tech_page = paginate(request, tech_qs)
+        tech_serializer = TechnicianSummarySerializer(tech_page["results"], many=True)
+
+        # ---------- 4. FINAL RESPONSE ----------
+        return Response(
+            {
+                "counts": {
+                    "total_users": total_users,
+                    "total_technicians": total_technicians,
+                    "total_bookings": total_bookings,
+                    "total_earnings": float(total_earnings),
+                },
+                "technicians": {
+                    "page": tech_page["page"],
+                    "page_size": tech_page["page_size"],
+                    "total": tech_page["total"],
+                    "results": tech_serializer.data,
+                },
+            }
+        )
+
+
+class AdminUserDetailView(APIView):
+    permission_classes = [AdminUser]
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        # --------- USER SUMMARY (aggregations) ----------
+        user_stats = (
+            User.objects.filter(id=user_id)
+            .annotate(
+                total_bookings=Count("bookings"),
+                total_spent=Sum("bookings__price"),
+                last_booking=Max("bookings__date_time_start"),
+                avg_rating=Avg(
+                    "reviews_given__rating"
+                ),  # reviews user gave to technicians
+            )
+            .first()
+        )
+
+        summary_data = AdminUserDetailSerializer(user_stats).data
+
+        # --------- BOOKING HISTORY (paginated) ----------
+        booking_qs = Booking.objects.filter(user=user).order_by("-date_time_start")
+
+        page = paginate(request, booking_qs, page_size_default=20)
+        booking_data = UserBookingHistorySerializer(page["results"], many=True).data
+
+        return Response(
+            {
+                "user": summary_data,
+                "bookings": {
+                    "page": page["page"],
+                    "page_size": page["page_size"],
+                    "total": page["total"],
+                    "results": booking_data,
+                },
+            }
+        )
