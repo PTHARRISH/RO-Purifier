@@ -6,6 +6,148 @@ info:
     and purchase RO water purifiers while also providing a seamless way to book certified
     technicians for installation, maintenance, and service.
 paths:
+  /api/admin/dashboard/:
+    get:
+      operationId: admin_dashboard_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianSummary'
+          description: ''
+  /api/admin/users/{user_id}/:
+    get:
+      operationId: admin_users_retrieve
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+          description: ''
+  /api/login/:
+    post:
+      operationId: login_create
+      tags:
+      - login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Login'
+          description: ''
+  /api/register/admin/:
+    post:
+      operationId: register_admin_create
+      tags:
+      - register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/register/technician/:
+    post:
+      operationId: register_technician_create
+      tags:
+      - register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/register/user/:
+    post:
+      operationId: register_user_create
+      tags:
+      - register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
   /api/token/:
     post:
       operationId: token_create
@@ -62,6 +204,163 @@ paths:
           description: ''
 components:
   schemas:
+    AdminUserDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        fullname:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        avatar:
+          type: string
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+        total_bookings:
+          type: integer
+        total_spent:
+          type: number
+          format: double
+        last_booking:
+          type: string
+          format: date-time
+        avg_rating:
+          type: number
+          format: double
+      required:
+      - avatar
+      - avg_rating
+      - fullname
+      - id
+      - last_booking
+      - total_bookings
+      - total_spent
+      - username
+    Login:
+      type: object
+      properties:
+        identifier:
+          type: string
+        password:
+          type: string
+          minLength: 8
+      required:
+      - identifier
+      - password
+    ProfileStatusEnum:
+      enum:
+      - inactive
+      - pending
+      - active
+      type: string
+      description: |-
+        * `inactive` - Inactive
+        * `pending` - Pending
+        * `active` - Active
+    Register:
+      type: object
+      properties:
+        fullname:
+          type: string
+          maxLength: 255
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        mobile:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 128
+        confirm_password:
+          type: string
+          writeOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+      required:
+      - confirm_password
+      - fullname
+      - password
+      - role
+      - username
+    RoleEnum:
+      enum:
+      - user
+      - admin
+      - technician
+      type: string
+      description: |-
+        * `user` - User
+        * `admin` - Admin
+        * `technician` - Technician
+    TechnicianSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+        fullname:
+          type: string
+        avatar:
+          type: string
+          readOnly: true
+        profile_status:
+          $ref: '#/components/schemas/ProfileStatusEnum'
+        years_experience:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        months_experience:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        avg_rating:
+          type: number
+          format: double
+        total_bookings:
+          type: integer
+        unique_users:
+          type: integer
+        earnings:
+          type: number
+          format: double
+      required:
+      - avatar
+      - avg_rating
+      - earnings
+      - fullname
+      - id
+      - profile_status
+      - total_bookings
+      - unique_users
+      - username
     TokenObtainPair:
       type: object
       properties:
@@ -94,3 +393,8 @@ components:
       required:
       - access
       - refresh
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

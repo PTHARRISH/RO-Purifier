@@ -25,12 +25,13 @@ User = get_user_model()
 
 class UserRegisterView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = RegisterSerializer
 
     def post(self, request):
         data = request.data.copy()
         data["role"] = "user"
 
-        serializer = RegisterSerializer(data=data)
+        serializer = self.serializer_class(data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -42,12 +43,13 @@ class UserRegisterView(APIView):
 
 class TechnicianRegisterView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = RegisterSerializer
 
     def post(self, request):
         data = request.data.copy()
         data["role"] = "technician"
 
-        serializer = RegisterSerializer(data=data)
+        serializer = self.serializer_class(data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -59,12 +61,13 @@ class TechnicianRegisterView(APIView):
 
 class AdminRegisterView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = RegisterSerializer
 
     def post(self, request):
         data = request.data.copy()
         data["role"] = "admin"
 
-        serializer = RegisterSerializer(data=data)
+        serializer = self.serializer_class(data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -76,10 +79,11 @@ class AdminRegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = LoginSerializer
 
     def post(self, request):
         # Validate input using serializer
-        serializer = LoginSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -172,6 +176,7 @@ class LoginView(APIView):
 
 class AdminDashboardView(APIView):
     permission_classes = [AdminUser]
+    serializer_class = TechnicianSummarySerializer
 
     def get(self, request):
         start, end = parse_date_range(request)
@@ -215,7 +220,7 @@ class AdminDashboardView(APIView):
         )
 
         tech_page = paginate(request, tech_qs)
-        tech_serializer = TechnicianSummarySerializer(tech_page["results"], many=True)
+        tech_serializer = self.serializer_class(tech_page["results"], many=True)
 
         # ---------- 4. FINAL RESPONSE ----------
         return Response(
@@ -238,6 +243,7 @@ class AdminDashboardView(APIView):
 
 class AdminUserDetailView(APIView):
     permission_classes = [AdminUser]
+    serializer_class = AdminUserDetailSerializer
 
     def get(self, request, user_id):
         try:
@@ -259,7 +265,7 @@ class AdminUserDetailView(APIView):
             .first()
         )
 
-        summary_data = AdminUserDetailSerializer(user_stats).data
+        summary_data = self.serializer_class(user_stats).data
 
         # --------- BOOKING HISTORY (paginated) ----------
         booking_qs = Booking.objects.filter(user=user).order_by("-date_time_start")

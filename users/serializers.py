@@ -1,6 +1,7 @@
 import re
 
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from users.models import Booking, Profile
@@ -61,6 +62,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("confirm_password")
         password = validated_data.pop("password")
+        if validated_data.get("role") == "admin":
+            validated_data["is_admin"] = True
+            # validated_data["is_superuser"] = True
         user = User(**validated_data)
         user.set_password(password)
         user.save()
@@ -116,6 +120,7 @@ class TechnicianSummarySerializer(serializers.ModelSerializer):
             "earnings",
         ]
 
+    @extend_schema_field(serializers.CharField())
     def get_avatar(self, obj):
         return obj.avatar.url if obj.avatar else None
 
@@ -163,6 +168,7 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
             "avg_rating",
         ]
 
+    @extend_schema_field(serializers.CharField())
     def get_avatar(self, obj):
         profile = getattr(obj, "profile", None)
         return profile.avatar.url if profile and profile.avatar else None
