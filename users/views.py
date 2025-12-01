@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from users.permissions import IsAdminUser
 from users.serializers import LoginSerializer, RegisterSerializer
 
 User = get_user_model()
@@ -154,3 +155,23 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# Admin Views all user information including roles and technician details.
+
+
+class AdminUserListView(APIView):
+    permission_classes = [
+        IsAdminUser,
+    ]
+
+    def get(self, request):
+        users = User.objects.all().values(
+            "id",
+            "username",
+            "email",
+            "mobile",
+            "fullname",
+            "role",
+        )
+        return Response({"users": list(users)}, status=status.HTTP_200_OK)
