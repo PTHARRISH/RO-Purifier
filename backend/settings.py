@@ -179,11 +179,20 @@ SIMPLE_JWT = {
 }
 
 
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+
 JAZZMIN_SETTINGS = {
     "site_title": "RO Purifier Admin",
     "site_header": "RO Purifier Admin",
     "site_brand": "RO Purifier Admin",
     "site_icon": "images/favicon.png",
+    "custom_css": "css/jazzmin-fix.css",
     # Add your own branding here
     "site_logo": None,
     "welcome_sign": "Welcome to the RO Purifier Admin Panel",
@@ -246,7 +255,7 @@ JAZZMIN_SETTINGS = {
 
 
 JAZZMIN_UI_TWEAKS = {
-    "theme": "cyborg",
+    "theme": "default",
     "navbar_small_text": False,
     "footer_small_text": False,
     "body_small_text": False,

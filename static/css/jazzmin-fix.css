@@ -1,0 +1,42 @@
+/* Reduce global font size */
+body,
+html {
+    font-size: 13px !important;   /* default is ~16px */
+}
+
+/* Sidebar menu font */
+.sidebar .nav-link {
+    font-size: 13px !important;
+}
+
+/* Table font size */
+table {
+    font-size: 13px !important;
+}
+
+/* Form labels */
+.control-label,
+.col-form-label {
+    font-size: 13px !important;
+}
+
+/* Inputs and selects */
+.form-control,
+.select2-selection__rendered {
+    font-size: 13px !important;
+}
+
+
+/* Make the multi-select option box horizontally scrollable */
+.filtered {
+    white-space: nowrap;       /* Prevent text from wrapping */
+    overflow-x: auto;          /* Enable horizontal scroll */
+    display: block;            /* Ensure the container allows scrolling */
+    max-width: 100%;           /* Stay within the screen width */
+}
+
+/* Optional: make the select box taller for easier viewing */
+.filtered option {
+    white-space: nowrap;       /* Keep each option in a single line */
+    padding-right: 10px;       /* Add spacing so text doesn't stick to the edge */
+}

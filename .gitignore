@@ -24,3 +24,6 @@ migrations/
 # pytest cache
 .pytest_cache/
 .coverage
+
+# Static files
+staticfiles/
