@@ -1,6 +1,15 @@
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+
+class TimestampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
 
 
 class User(AbstractUser):
@@ -22,7 +31,7 @@ class Tag(models.Model):
         return str(self.name)
 
 
-class Profile(models.Model):
+class Profile(TimestampedModel):
     PROFILE_STATUS = [
         ("inactive", "Inactive"),
         ("pending", "Pending"),
@@ -51,14 +60,92 @@ class Profile(models.Model):
         return str(self.user)
 
 
-class Review(models.Model):
+class Category(TimestampedModel):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Brand(TimestampedModel):
+    name = models.CharField(max_length=100, unique=True)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="brands",
+    )
+
+    def __str__(self):
+        return str(self.name)
+
+
+class Product(TimestampedModel):
+    product_name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    tags = models.ManyToManyField(Tag, blank=True)
+    status = models.CharField(
+        choices=[("stock", "Stock"), ("out_of_stock", "Out of Stock")], max_length=20
+    )
+    technical_specifications = models.JSONField(blank=True, null=True)
+    brand = models.ForeignKey(
+        Brand,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="products",
+    )
+
+    def __str__(self):
+        return str(self.product_name)
+
+    @property
+    def average_rating(self):
+        reviews = self.reviews.all()
+        if reviews.exists():
+            return round(sum([r.rating for r in reviews]) / reviews.count(), 2)
+        return 0
+
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="images"
+    )
+    image = models.ImageField(upload_to="products/gallery/")
+
+    def __str__(self):
+        return f"Image for {self.product.product_name}"
+
+
+class ProductReview(TimestampedModel):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="reviews"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="user_reviews"
+    )
+    rating = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    review_text = models.TextField(blank=True)
+    image = models.ImageField(upload_to="reviews/", blank=True, null=True)
+
+    class Meta:
+        unique_together = ("user", "product")  # One review per user
+
+    def __str__(self):
+        return f"{self.user.username} - {self.product.product_name}"
+
+
+class Review(TimestampedModel):
     technician = models.ForeignKey(
         Profile, on_delete=models.CASCADE, related_name="reviews"
     )
     reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     rating = models.PositiveSmallIntegerField()
     review_text = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return str(self.technician) + " - " + str(self.rating)

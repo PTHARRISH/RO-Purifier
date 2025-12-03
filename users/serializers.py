@@ -4,7 +4,15 @@ from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from users.models import Booking, Profile
+from users.models import (
+    Booking,
+    Brand,
+    Product,
+    ProductImage,
+    ProductReview,
+    Profile,
+    Tag,
+)
 
 User = get_user_model()
 
@@ -62,10 +70,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("confirm_password")
         password = validated_data.pop("password")
-        if validated_data.get("role") == "admin":
-            validated_data["is_admin"] = True
-            # validated_data["is_superuser"] = True
         user = User(**validated_data)
+        if validated_data.get("role") == "admin":
+            user.is_superuser = True
+        if validated_data.get("role") == "technician":
+            user.is_staff = True
         user.set_password(password)
         user.save()
         return user
@@ -92,6 +101,64 @@ class LoginSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         return instance  # Login does not update objects
+
+
+class ProductImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ["id", "image"]
+
+
+class BrandSerializer(serializers.ModelSerializer):
+    category = serializers.StringRelatedField()
+
+    class Meta:
+        model = Brand
+        fields = ["id", "name", "category"]
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ["id", "name"]
+
+
+class ProductReviewSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = ["id", "username", "rating", "review_text", "image", "created_at"]
+        read_only_fields = ["username", "created_at"]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    brand = BrandSerializer()
+    tags = TagSerializer(many=True)
+    images = ProductImageSerializer(many=True)
+    reviews = ProductReviewSerializer(many=True, read_only=True)
+    average_rating = serializers.FloatField(read_only=True)
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "product_name",
+            "description",
+            "price",
+            "tags",
+            "status",
+            "technical_specifications",
+            "brand",
+            "images",
+            "reviews",
+            "average_rating",
+            "url",
+        ]
+
+    def get_url(self, obj):
+        return f"/products/{obj.id}/"
 
 
 class TechnicianSummarySerializer(serializers.ModelSerializer):

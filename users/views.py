@@ -3,17 +3,19 @@ from decimal import Decimal, InvalidOperation
 from django.contrib.auth import get_user_model
 from django.db.models import Avg, Count, Max, Sum
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from users.models import Booking, Profile
+from users.models import Booking, Product, ProductReview, Profile
 from users.permissions import AdminUser
 from users.serializers import (
     AdminUserDetailSerializer,
     BookingDetailSerializer,
     LoginSerializer,
+    ProductReviewSerializer,
+    ProductSerializer,
     RegisterSerializer,
     TechnicianSummarySerializer,
     UserBookingHistorySerializer,
@@ -169,6 +171,48 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ProductListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        products = Product.objects.all().prefetch_related("images", "tags", "reviews")
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductReviewCreateUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, product_id):
+        product = Product.objects.get(id=product_id)
+
+        try:
+            review = ProductReview.objects.get(product=product, user=request.user)
+            serializer = ProductReviewSerializer(
+                review, data=request.data, partial=True
+            )
+        except ProductReview.DoesNotExist:
+            serializer = ProductReviewSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(product=product, user=request.user)
+            return Response(
+                {"message": "Review submitted successfully", "data": serializer.data},
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProductDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, product_id):
+        product = Product.objects.get(id=product_id)
+        serializer = ProductSerializer(product)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 # Admin Views all user information including roles and technician details.
