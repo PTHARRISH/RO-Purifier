@@ -40,6 +40,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminUserDetail'
           description: ''
+  /api/delete-account/:
+    get:
+      operationId: delete_account_retrieve
+      tags:
+      - delete-account
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/login/:
     post:
       operationId: login_create
@@ -67,6 +78,140 @@ paths:
               schema:
                 $ref: '#/components/schemas/Login'
           description: ''
+  /api/products/:
+    get:
+      operationId: products_list
+      parameters:
+      - in: query
+        name: brand
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: price
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - out_of_stock
+          - stock
+        description: |-
+          * `stock` - Stock
+          * `out_of_stock` - Out of Stock
+      tags:
+      - products
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductList'
+          description: ''
+  /api/products/{product_id}/:
+    get:
+      operationId: products_retrieve
+      parameters:
+      - in: path
+        name: product_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - products
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/products/{product_id}/review/:
+    post:
+      operationId: products_review_create
+      parameters:
+      - in: path
+        name: product_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductReview'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductReview'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductReview'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductReview'
+          description: ''
+  /api/profile/{username}/:
+    get:
+      operationId: profile_retrieve
+      parameters:
+      - in: path
+        name: username
+        schema:
+          type: string
+        required: true
+      tags:
+      - profile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: profile_update
+      parameters:
+      - in: path
+        name: username
+        schema:
+          type: string
+        required: true
+      tags:
+      - profile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/register/admin/:
     post:
       operationId: register_admin_create
@@ -250,6 +395,22 @@ components:
       - total_bookings
       - total_spent
       - username
+    Brand:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        category:
+          type: string
+          readOnly: true
+      required:
+      - category
+      - id
+      - name
     Login:
       type: object
       properties:
@@ -261,6 +422,121 @@ components:
       required:
       - identifier
       - password
+    PaginatedProductList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        technical_specifications:
+          nullable: true
+        brand:
+          $ref: '#/components/schemas/Brand'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductReview'
+          readOnly: true
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+      required:
+      - average_rating
+      - brand
+      - id
+      - images
+      - price
+      - product_name
+      - reviews
+      - status
+      - tags
+      - url
+    ProductImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        image:
+          type: string
+          format: uri
+      required:
+      - id
+      - image
+    ProductReview:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        review_text:
+          type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - rating
+      - username
     ProfileStatusEnum:
       enum:
       - inactive
@@ -316,6 +592,26 @@ components:
         * `user` - User
         * `admin` - Admin
         * `technician` - Technician
+    StatusEnum:
+      enum:
+      - stock
+      - out_of_stock
+      type: string
+      description: |-
+        * `stock` - Stock
+        * `out_of_stock` - Out of Stock
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+      required:
+      - id
+      - name
     TechnicianSummary:
       type: object
       properties:
