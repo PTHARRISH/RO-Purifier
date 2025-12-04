@@ -1,7 +1,6 @@
 import re
 
 from django.contrib.auth import get_user_model
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from users.models import (
@@ -103,6 +102,68 @@ class LoginSerializer(serializers.Serializer):
         return instance  # Login does not update objects
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    fullname = serializers.CharField(source="user.fullname", required=False)
+
+    class Meta:
+        model = Profile
+        fields = [
+            "fullname",
+            "bio",
+            "avatar",
+            "profile_status",
+        ]
+        read_only_fields = ["profile_status"]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        if "fullname" in user_data:
+            instance.user.fullname = user_data["fullname"]
+            instance.user.save()
+
+        return super().update(instance, validated_data)
+
+
+class TechnicianProfileSerializer(serializers.ModelSerializer):
+    fullname = serializers.CharField(source="user.fullname", required=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
+
+    class Meta:
+        model = Profile
+        fields = [
+            "fullname",
+            "bio",
+            "avatar",
+            "profile_status",
+            "years_experience",
+            "months_experience",
+            "tags",
+            "available_days",
+            "price_hour",
+            "price_day",
+        ]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        if "fullname" in user_data:
+            instance.user.fullname = user_data["fullname"]
+            instance.user.save()
+
+        tags = validated_data.pop("tags", None)
+        profile = super().update(instance, validated_data)
+
+        if tags is not None:
+            profile.tags.set(tags)
+
+        return profile
+
+
+class AdminProfileSerializer(UserProfileSerializer):
+    pass
+
+
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
@@ -187,7 +248,6 @@ class TechnicianSummarySerializer(serializers.ModelSerializer):
             "earnings",
         ]
 
-    @extend_schema_field(serializers.CharField())
     def get_avatar(self, obj):
         return obj.avatar.url if obj.avatar else None
 
@@ -235,7 +295,6 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
             "avg_rating",
         ]
 
-    @extend_schema_field(serializers.CharField())
     def get_avatar(self, obj):
         profile = getattr(obj, "profile", None)
         return profile.avatar.url if profile and profile.avatar else None

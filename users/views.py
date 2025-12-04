@@ -1,24 +1,34 @@
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import get_user_model
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db.models import Avg, Count, Max, Sum
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from users.models import Booking, Product, ProductReview, Profile
 from users.permissions import AdminUser
 from users.serializers import (
+    AdminProfileSerializer,
     AdminUserDetailSerializer,
     BookingDetailSerializer,
     LoginSerializer,
     ProductReviewSerializer,
     ProductSerializer,
     RegisterSerializer,
+    TechnicianProfileSerializer,
     TechnicianSummarySerializer,
     UserBookingHistorySerializer,
+    UserProfileSerializer,
 )
 from users.utils import paginate, parse_date_range
 
@@ -82,22 +92,14 @@ class AdminRegisterView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
     serializer_class = LoginSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         # Validate input using serializer
         serializer = self.serializer_class(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        # Debug logging — visible in Django terminal
-        print("=" * 60)
-        print("[LOGIN REQUEST] Received POST request!")
-        print(f"[IP] {request.META.get('REMOTE_ADDR', 'Unknown')}")
-        print(f"[PATH] {request.path}")
-        print(f"[METHOD] {request.method}")
-        print(f"[CONTENT-TYPE] {request.content_type}")
-        print(f"[DATA] {dict(request.data)}")
-        print("=" * 60)
 
         identifier = serializer.validated_data.get("identifier").strip()
         password = serializer.validated_data.get("password")
@@ -155,7 +157,7 @@ class LoginView(APIView):
         refresh = RefreshToken.for_user(user)
 
         # Auto-redirect URL based on role
-        redirect_url = f"/{user.role}/{user.username}/"
+        redirect_url = f"/profile/{user.username}/"
 
         return Response(
             {
@@ -173,29 +175,91 @@ class LoginView(APIView):
         )
 
 
-class ProductListView(APIView):
+class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        products = Product.objects.all().prefetch_related("images", "tags", "reviews")
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def get_profile(self, username):
+        try:
+            user = User.objects.get(username=username)
+            profile = Profile.objects.filter(user=user).first()
+            if not profile:
+                return None, None
+            return user, profile
+        except User.DoesNotExist:
+            return None, None
+
+    def get_serializer_class(self, request_user, profile_user):
+        if request_user.role == "admin":
+            return AdminProfileSerializer
+
+        if request_user.role == "technician" and request_user == profile_user:
+            return TechnicianProfileSerializer
+
+        if request_user.role == "user" and request_user == profile_user:
+            return UserProfileSerializer
+
+        return None
+
+    def get(self, request, username):
+        user, profile = self.get_profile(username)
+        if not user:
+            return Response({"error": "User not found"}, status=404)
+
+        serializer_class = self.get_serializer_class(request.user, user)
+        if not serializer_class:
+            return Response({"error": "Permission denied"}, status=403)
+
+        serializer = serializer_class(profile)
+        return Response(serializer.data)
+
+    def put(self, request, username):
+        user, profile = self.get_profile(username)
+        if not user:
+            return Response({"error": "User not found"}, status=404)
+
+        serializer_class = self.get_serializer_class(request.user, user)
+        if not serializer_class:
+            return Response({"error": "Permission denied"}, status=403)
+
+        serializer = serializer_class(profile, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Profile updated successfully"})
+        return Response(serializer.errors, status=400)
+
+
+class ProductListView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "product_list"
+    serializer_class = ProductSerializer
+    queryset = Product.objects.all().prefetch_related("images", "tags", "reviews")
+
+    filter_backends = [
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    ]
+
+    filterset_fields = ["brand", "status", "price"]
+    search_fields = ["product_name", "description"]
+    ordering_fields = ["price", "product_name", "average_rating"]
+    ordering = ["price"]
 
 
 class ProductReviewCreateUpdateView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = ProductReviewSerializer
 
     def post(self, request, product_id):
-        product = Product.objects.get(id=product_id)
+        product = get_object_or_404(Product, id=product_id)
 
         try:
             review = ProductReview.objects.get(product=product, user=request.user)
-            serializer = ProductReviewSerializer(
-                review, data=request.data, partial=True
-            )
+            serializer = self.serializer_class(review, data=request.data, partial=True)
         except ProductReview.DoesNotExist:
-            serializer = ProductReviewSerializer(data=request.data)
-
+            serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save(product=product, user=request.user)
             return Response(
@@ -208,10 +272,11 @@ class ProductReviewCreateUpdateView(APIView):
 
 class ProductDetailView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = ProductSerializer
 
     def get(self, request, product_id):
-        product = Product.objects.get(id=product_id)
-        serializer = ProductSerializer(product)
+        product = get_object_or_404(Product, id=product_id)
+        serializer = self.serializer_class(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -237,7 +302,7 @@ class AdminDashboardView(APIView):
         # ===== If technician detail is requested =====
         tech_id = request.GET.get("technician_id")
         if tech_id:
-            tech = Profile.objects.get(id=tech_id)
+            tech = get_object_or_404(Profile, id=tech_id)
             tech_bookings = Booking.objects.filter(technician=tech).order_by(
                 "-date_time_start"
             )
@@ -308,6 +373,8 @@ class AdminUserDetailView(APIView):
             )
             .first()
         )
+        if not user_stats:
+            return Response({"error": "User not found"}, status=404)
 
         summary_data = self.serializer_class(user_stats).data
 
@@ -328,3 +395,28 @@ class AdminUserDetailView(APIView):
                 },
             }
         )
+
+
+signer = TimestampSigner()
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.GET.get("token")
+        if not token:
+            return JsonResponse({"error": "Token required"}, status=400)
+
+        try:
+            # Verify and check expiration (max_age in seconds = 24h)
+            unsigned = signer.unsign(token, max_age=86400)
+            user = get_user_model().objects.get(pk=unsigned)
+        except SignatureExpired:
+            return JsonResponse({"error": "Link expired"}, status=400)
+        except (BadSignature, get_user_model().DoesNotExist):
+            return JsonResponse({"error": "Invalid link"}, status=400)
+
+        # Delete user and profile
+        user.delete()
+        return JsonResponse({"message": "Account deleted successfully."}, status=200)
