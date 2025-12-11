@@ -1,7 +1,9 @@
 from decimal import Decimal, InvalidOperation
+from math import ceil
 
 from django.contrib.auth import get_user_model
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.db import transaction
 from django.db.models import Avg, Count, Max, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -9,30 +11,55 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsUserRole,
+    TechnicianUser,
+)
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from users.models import Booking, Product, ProductReview, Profile
+from users.models import (
+    Booking,
+    Cart,
+    CartItem,
+    Notification,
+    Order,
+    OrderItem,
+    Product,
+    ProductReview,
+    ProductReviewImage,
+    Profile,
+    TechnicianReview,
+)
 from users.permissions import AdminUser
 from users.serializers import (
+    AddToCartSerializer,
     AdminProfileSerializer,
     AdminUserDetailSerializer,
     BookingDetailSerializer,
+    CartItemSerializer,
+    CartSerializer,
+    CheckoutSerializer,
     LoginSerializer,
     ProductReviewSerializer,
     ProductSerializer,
     RegisterSerializer,
     TechnicianProfileSerializer,
+    TechnicianReviewSerializer,
     TechnicianSummarySerializer,
+    UpdateCartItemSerializer,
     UserBookingHistorySerializer,
     UserProfileSerializer,
 )
 from users.utils import paginate, parse_date_range
 
 User = get_user_model()
+signer = TimestampSigner()
 
 
 class UserRegisterView(APIView):
@@ -249,25 +276,42 @@ class ProductListView(ListAPIView):
 
 
 class ProductReviewCreateUpdateView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductReviewSerializer
 
     def post(self, request, product_id):
+        user = request.user
         product = get_object_or_404(Product, id=product_id)
 
-        try:
-            review = ProductReview.objects.get(product=product, user=request.user)
-            serializer = self.serializer_class(review, data=request.data, partial=True)
-        except ProductReview.DoesNotExist:
-            serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid():
-            serializer.save(product=product, user=request.user)
+        # user must have purchased this product
+        purchased = OrderItem.objects.filter(order__user=user, product=product).exists()
+        if not purchased:
             return Response(
-                {"message": "Review submitted successfully", "data": serializer.data},
-                status=status.HTTP_200_OK,
+                {"error": "You can review this product only after purchasing it."},
+                status=400,
             )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        review, created = ProductReview.objects.get_or_create(
+            user=user,
+            product=product,
+            defaults={
+                "rating": request.data.get("rating"),
+                "review_text": request.data.get("review_text", ""),
+            },
+        )
+
+        if not created:
+            review.rating = request.data.get("rating")
+            review.review_text = request.data.get("review_text", "")
+            review.save()
+
+        # Handle images
+        images = request.FILES.getlist("images")
+        for img in images:
+            ProductReviewImage.objects.create(review=review, image=img)
+
+        serializer = ProductReviewSerializer(review)
+        return Response(serializer.data)
 
 
 class ProductDetailView(APIView):
@@ -278,9 +322,6 @@ class ProductDetailView(APIView):
         product = get_object_or_404(Product, id=product_id)
         serializer = self.serializer_class(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# Admin Views all user information including roles and technician details.
 
 
 class AdminDashboardView(APIView):
@@ -397,9 +438,6 @@ class AdminUserDetailView(APIView):
         )
 
 
-signer = TimestampSigner()
-
-
 class DeleteAccountView(APIView):
     permission_classes = [AllowAny]
 
@@ -420,3 +458,299 @@ class DeleteAccountView(APIView):
         # Delete user and profile
         user.delete()
         return JsonResponse({"message": "Account deleted successfully."}, status=200)
+
+
+class TechnicianBookingsView(APIView):
+    permission_classes = [IsAuthenticated, TechnicianUser]
+
+    def get(self, request):
+        # technician is Profile linked to user
+        try:
+            profile = request.user.profile
+        except Profile.DoesNotExist:
+            return Response({"detail": "Profile not found."}, status=404)
+        bookings = profile.bookings.all().order_by("-date_time_start")
+        data = []
+        for b in bookings:
+            data.append(
+                {
+                    "id": b.pk,
+                    "user": {
+                        "id": b.user.id,
+                        "username": b.user.username,
+                        "fullname": b.user.fullname,
+                    },
+                    "date_time_start": b.date_time_start,
+                    "date_time_end": b.date_time_end,
+                    "address": b.address,
+                    "price": b.price,
+                    "service_status": b.service_status,
+                    "payment_done": b.payment_done,
+                }
+            )
+        return Response(data)
+
+
+class TechnicianNotificationsView(APIView):
+    permission_classes = [IsAuthenticated, TechnicianUser]
+
+    def get(self, request):
+        profile = request.user.profile
+        qs = profile.notifications.order_by("-created_at")
+        data = [
+            {
+                "id": n.pk,
+                "title": n.title,
+                "message": n.message,
+                "created_at": n.created_at,
+                "is_read": n.is_read,
+            }
+            for n in qs
+        ]
+        return Response(data)
+
+
+class AddToCartView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def post(self, request):
+        serializer = AddToCartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        product = get_object_or_404(Product, pk=serializer.validated_data["product_id"])
+        qty = serializer.validated_data.get("quantity", 1)
+
+        cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
+
+        # get or create cart item; increment quantity if exists
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            defaults={"quantity": qty, "unit_price": product.price},
+        )
+        if not created:
+            cart_item.quantity = cart_item.quantity + qty
+            cart_item.save()
+
+        return Response(CartSerializer(cart).data, status=status.HTTP_200_OK)
+
+
+class CartDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def get(self, request):
+        cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
+        return Response(CartSerializer(cart).data)
+
+
+class UpdateCartItemView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def patch(self, request, item_id):
+        cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
+        cart_item = get_object_or_404(CartItem, pk=item_id, cart=cart)
+        serializer = UpdateCartItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cart_item.quantity = serializer.validated_data["quantity"]
+        cart_item.save()
+        return Response(CartItemSerializer(cart_item).data)
+
+
+class RemoveCartItemView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def delete(self, request, item_id):
+        cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
+        cart_item = get_object_or_404(CartItem, pk=item_id, cart=cart)
+        mode = request.query_params.get("mode", "all")
+        # default to removing entire item
+        if mode == "one":
+            # remove just one quantity
+            if cart_item.quantity > 1:
+                cart_item.quantity -= 1
+                cart_item.save()
+            else:
+                # if quantity becomes 0 → delete item
+                cart_item.delete()
+        else:
+            # remove entire item
+            cart_item.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CheckoutView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    @transaction.atomic
+    def post(self, request):
+        cart = get_object_or_404(Cart, user=request.user, is_active=True)
+        if not cart.items.exists():
+            return Response(
+                {"detail": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = CheckoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Resolve address
+        chosen_address = None
+        if "address_index" in data:
+            idx = data["address_index"]
+            # expect user.address to be a list of address objects OR a single object
+            ua = getattr(request.user, "address", None)
+            if ua is None:
+                return Response(
+                    {"detail": "No saved addresses found."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if isinstance(ua, list):
+                try:
+                    chosen_address = ua[idx]
+                except Exception:
+                    return Response(
+                        {"detail": "Invalid address_index."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            elif isinstance(ua, dict) and idx == 0:
+                chosen_address = ua
+            else:
+                return Response(
+                    {"detail": "Invalid address selection."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            chosen_address = data.get("address")
+
+        # calculate items total
+        items_total = Decimal(0)
+        for it in cart.items.all():
+            items_total += Decimal(it.unit_price) * it.quantity
+
+        # technician handling
+        technician = None
+        technician_fee = Decimal(0)
+        booking_obj = None
+        if data.get("technician_id"):
+            tech = get_object_or_404(Profile, pk=data["technician_id"])
+            technician = tech
+            # calculate duration; prefer price_day; fallback to price_hour
+            start = data["date_time_start"]
+            end = data["date_time_end"]
+            delta = end - start
+            # days as integer (count partial as full)
+            days = int(ceil(delta.total_seconds() / (24 * 3600)))
+            if tech.price_day:
+                technician_fee = (Decimal(tech.price_day) * Decimal(days)).quantize(
+                    Decimal("0.01")
+                )
+            elif tech.price_hour:
+                hours = int(ceil(delta.total_seconds() / 3600))
+                technician_fee = (Decimal(tech.price_hour) * Decimal(hours)).quantize(
+                    Decimal("0.01")
+                )
+            else:
+                technician_fee = Decimal(0)
+
+        total = (items_total + technician_fee).quantize(Decimal("0.01"))
+
+        # create Order
+        order = Order.objects.create(
+            user=request.user,
+            cart=cart,
+            total=total,
+            address=chosen_address,
+            payment_method=data["payment_method"],
+            payment_done=data.get("payment_done", False),
+            technician=technician,
+            technician_fee=technician_fee,
+            notes=data.get("notes", ""),
+        )
+
+        # create order items
+        for item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                unit_price=item.unit_price,
+                quantity=item.quantity,
+                line_total=(Decimal(item.unit_price) * Decimal(item.quantity)).quantize(
+                    Decimal("0.01")
+                ),
+            )
+
+        # If technician selected, create Booking and attach to order.
+        if technician:
+            booking_price = technician_fee
+            booking_obj = Booking.objects.create(
+                technician=technician,
+                user=request.user,
+                date_time_start=data["date_time_start"],
+                date_time_end=data["date_time_end"],
+                address=chosen_address,
+                payment_done=order.payment_done,
+                price=booking_price,
+                service_status="pending",
+            )
+            order.booking = booking_obj
+            order.save()
+
+            # Notify technician
+            Notification.objects.create(
+                recipient=technician,
+                title=f"New booking request (Order {order.pk})",
+                message=f"You have a new booking from {request.user.username}.",
+                metadata={
+                    "order_id": order.pk,
+                    "booking_id": booking_obj.pk,
+                    "user_id": request.user.pk,
+                },
+            )
+
+        # mark cart inactive (checkout)
+        cart.is_active = False
+        cart.save()
+
+        # Optionally create a fresh cart for user
+        Cart.objects.create(user=request.user, is_active=True)
+
+        return Response(
+            {
+                "order_id": order.pk,
+                "total": order.total,
+                "payment_done": order.payment_done,
+                "booking_id": booking_obj.pk if booking_obj else None,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TechnicianReviewView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def post(self, request, booking_id):
+        user = request.user
+        booking = get_object_or_404(Booking, id=booking_id, user=user)
+
+        # Only if booking is completed
+        if booking.service_status != "completed":
+            return Response(
+                {"error": "You can review only completed services."}, status=400
+            )
+
+        # Only 1 review per booking
+        if TechnicianReview.objects.filter(booking=booking).exists():
+            return Response({"error": "You already reviewed this service."}, status=400)
+
+        technician = booking.technician  # profile
+
+        review = TechnicianReview.objects.create(
+            technician=technician,
+            user=user,
+            booking=booking,
+            rating=request.data.get("rating"),
+            comment=request.data.get("comment", ""),
+        )
+
+        serializer = TechnicianReviewSerializer(review)
+        return Response(serializer.data, status=201)
