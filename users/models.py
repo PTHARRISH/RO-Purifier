@@ -138,13 +138,24 @@ class ProductReview(TimestampedModel):
         validators=[MinValueValidator(1), MaxValueValidator(5)]
     )
     review_text = models.TextField(blank=True)
-    image = models.ImageField(upload_to="reviews/", blank=True, null=True)
+    # image = models.ImageField(upload_to="reviews/", blank=True, null=True)
 
     class Meta:
         unique_together = ("user", "product")  # One review per user
 
     def __str__(self):
         return f"{self.user.username} - {self.product.product_name}"
+
+
+class ProductReviewImage(models.Model):
+    review = models.ForeignKey(
+        ProductReview, related_name="images", on_delete=models.CASCADE
+    )
+    image = models.ImageField(upload_to="product_review_images/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"ReviewImage {self.id} for Review {self.review.id}"
 
 
 class Review(TimestampedModel):
@@ -268,3 +279,17 @@ class Notification(TimestampedModel):
 
     def __str__(self):
         return f"Notification to {self.recipient} - {self.title}"
+
+
+class TechnicianReview(models.Model):
+    technician = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, related_name="tech_reviews"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE)
+    rating = models.IntegerField()
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} reviewed {self.technician}"

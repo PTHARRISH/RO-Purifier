@@ -12,8 +12,10 @@ from users.models import (
     Product,
     ProductImage,
     ProductReview,
+    ProductReviewImage,
     Profile,
     Tag,
+    TechnicianReview,
 )
 
 User = get_user_model()
@@ -187,12 +189,19 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+class ProductReviewImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductReviewImage
+        fields = ["id", "image", "uploaded_at"]
+
+
 class ProductReviewSerializer(serializers.ModelSerializer):
+    images = ProductReviewImageSerializer(many=True, read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
 
     class Meta:
         model = ProductReview
-        fields = ["id", "username", "rating", "review_text", "image", "created_at"]
+        fields = ["id", "username", "rating", "review_text", "images", "created_at"]
         read_only_fields = ["username", "created_at"]
 
 
@@ -404,3 +413,9 @@ class CheckoutSerializer(serializers.Serializer):
         if "address_index" not in attrs and "address" not in attrs:
             raise serializers.ValidationError("Provide address_index or address JSON.")
         return attrs
+
+
+class TechnicianReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TechnicianReview
+        fields = ["id", "rating", "comment", "created_at"]

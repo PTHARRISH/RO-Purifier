@@ -11,6 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.generics import ListAPIView
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -31,7 +32,9 @@ from users.models import (
     OrderItem,
     Product,
     ProductReview,
+    ProductReviewImage,
     Profile,
+    TechnicianReview,
 )
 from users.permissions import AdminUser
 from users.serializers import (
@@ -47,6 +50,7 @@ from users.serializers import (
     ProductSerializer,
     RegisterSerializer,
     TechnicianProfileSerializer,
+    TechnicianReviewSerializer,
     TechnicianSummarySerializer,
     UpdateCartItemSerializer,
     UserBookingHistorySerializer,
@@ -272,25 +276,42 @@ class ProductListView(ListAPIView):
 
 
 class ProductReviewCreateUpdateView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductReviewSerializer
 
     def post(self, request, product_id):
+        user = request.user
         product = get_object_or_404(Product, id=product_id)
 
-        try:
-            review = ProductReview.objects.get(product=product, user=request.user)
-            serializer = self.serializer_class(review, data=request.data, partial=True)
-        except ProductReview.DoesNotExist:
-            serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid():
-            serializer.save(product=product, user=request.user)
+        # user must have purchased this product
+        purchased = OrderItem.objects.filter(order__user=user, product=product).exists()
+        if not purchased:
             return Response(
-                {"message": "Review submitted successfully", "data": serializer.data},
-                status=status.HTTP_200_OK,
+                {"error": "You can review this product only after purchasing it."},
+                status=400,
             )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        review, created = ProductReview.objects.get_or_create(
+            user=user,
+            product=product,
+            defaults={
+                "rating": request.data.get("rating"),
+                "review_text": request.data.get("review_text", ""),
+            },
+        )
+
+        if not created:
+            review.rating = request.data.get("rating")
+            review.review_text = request.data.get("review_text", "")
+            review.save()
+
+        # Handle images
+        images = request.FILES.getlist("images")
+        for img in images:
+            ProductReviewImage.objects.create(review=review, image=img)
+
+        serializer = ProductReviewSerializer(review)
+        return Response(serializer.data)
 
 
 class ProductDetailView(APIView):
@@ -702,3 +723,34 @@ class CheckoutView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class TechnicianReviewView(APIView):
+    permission_classes = [IsAuthenticated, IsUserRole]
+
+    def post(self, request, booking_id):
+        user = request.user
+        booking = get_object_or_404(Booking, id=booking_id, user=user)
+
+        # Only if booking is completed
+        if booking.service_status != "completed":
+            return Response(
+                {"error": "You can review only completed services."}, status=400
+            )
+
+        # Only 1 review per booking
+        if TechnicianReview.objects.filter(booking=booking).exists():
+            return Response({"error": "You already reviewed this service."}, status=400)
+
+        technician = booking.technician  # profile
+
+        review = TechnicianReview.objects.create(
+            technician=technician,
+            user=user,
+            booking=booking,
+            rating=request.data.get("rating"),
+            comment=request.data.get("comment", ""),
+        )
+
+        serializer = TechnicianReviewSerializer(review)
+        return Response(serializer.data, status=201)

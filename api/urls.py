@@ -17,6 +17,7 @@ from users.views import (
     TechnicianBookingsView,
     TechnicianNotificationsView,
     TechnicianRegisterView,
+    TechnicianReviewView,
     UpdateCartItemView,
     UserRegisterView,
 )
@@ -40,6 +41,7 @@ urlpatterns = [
         ProductReviewCreateUpdateView.as_view(),
         name="product-review",
     ),
+    path("technician/review/<int:booking_id>/", TechnicianReviewView.as_view()),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
     path(
         "admin/users/<int:user_id>/",
