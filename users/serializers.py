@@ -4,8 +4,11 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from users.models import (
+    PAYMENT_CHOICES,
     Booking,
     Brand,
+    Cart,
+    CartItem,
     Product,
     ProductImage,
     ProductReview,
@@ -326,3 +329,78 @@ class UserBookingHistorySerializer(serializers.ModelSerializer):
             "username": t.username,
             "fullname": t.fullname,
         }
+
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+    total_price = serializers.DecimalField(
+        source="total_price", max_digits=12, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = CartItem
+        fields = [
+            "id",
+            "product",
+            "product_name",
+            "quantity",
+            "unit_price",
+            "total_price",
+        ]
+
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True)
+    total = serializers.DecimalField(
+        source="total", max_digits=12, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = Cart
+        fields = ["id", "user", "items", "total", "is_active"]
+        read_only_fields = ["user", "total", "is_active"]
+
+
+class AddToCartSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1, default=1)
+
+    def validate_product_id(self, value):
+        try:
+            Product.objects.get(pk=value)
+        except Product.DoesNotExist:
+            raise serializers.ValidationError("Product not found.") from None
+        return value
+
+
+class UpdateCartItemSerializer(serializers.Serializer):
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class CheckoutSerializer(serializers.Serializer):
+    address_index = serializers.IntegerField(required=False)
+    address = serializers.JSONField(required=False)
+    payment_method = serializers.ChoiceField(choices=PAYMENT_CHOICES)
+    technician_id = serializers.IntegerField(required=False, allow_null=True)
+    date_time_start = serializers.DateTimeField(required=False, allow_null=True)
+    date_time_end = serializers.DateTimeField(required=False, allow_null=True)
+    payment_done = serializers.BooleanField(default=False)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        tech = attrs.get("technician_id")
+        start = attrs.get("date_time_start")
+        end = attrs.get("date_time_end")
+        if tech:
+            if not start or not end:
+                raise serializers.ValidationError(
+                    "date_time_start and date_time_end "
+                    "are required when technician is selected."
+                )
+            if start >= end:
+                raise serializers.ValidationError(
+                    "date_time_end must be after date_time_start."
+                )
+        if "address_index" not in attrs and "address" not in attrs:
+            raise serializers.ValidationError("Provide address_index or address JSON.")
+        return attrs

@@ -19,3 +19,13 @@ class TechnicianUser(BasePermission):
             and request.user.role == "technician"
             and request.user.is_staff
         )
+
+
+class IsUserRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == "user"
+            and not request.user.is_staff
+        )
