@@ -4,6 +4,8 @@ import Navbar from "../reusableComponents/Navbar";
 import { FaStar } from "react-icons/fa";
 import products from "../data/Productsdata";
 import { useCart } from "../context/CartContext";
+import Footer from "../reusableComponents/Footer";
+import BannerCard from "../reusableComponents/BannerCard";
 
 const ProductsPage = () => {
   const navigate = useNavigate();
@@ -12,6 +14,7 @@ const ProductsPage = () => {
   return (
     <div>
       <Navbar />
+      <BannerCard />
 
       <div className="max-w-7xl mx-auto px-4 py-10">
         <h1 className="text-3xl font-bold">Product List</h1>
@@ -65,6 +68,7 @@ const ProductsPage = () => {
 
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
