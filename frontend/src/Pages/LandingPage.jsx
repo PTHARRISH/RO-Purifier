@@ -13,7 +13,7 @@ import BannerCard from "../reusableComponents/BannerCard";
 const LandingPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar cartCount={3} />
+      <Navbar />
 
       {/* Carousel */}
       <motion.div
