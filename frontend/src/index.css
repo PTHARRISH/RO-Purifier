@@ -18,3 +18,15 @@
     @apply hover:shadow-xl hover:-translate-y-2 transition-all duration-300;
   }
 }
+
+/* src/index.css - Add at bottom */
+img[src*="ibb.co"] {
+  display: none !important;
+}
+
+img {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background-size: cover;
+  border-radius: 12px;
+}
+

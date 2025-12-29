@@ -1,13 +1,16 @@
-import React from "react";
+// src/ProtectedRoutes/ProtectedRoute.jsx
 import { Navigate } from "react-router-dom";
+import { getUserFromToken } from "../utils/Jwt";
 
-// Protect routes that require authentication
-export default function ProtectedRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+export default function ProtectedRoute({ children, allowedRoles }) {
+  const user = getUserFromToken();
 
-  if (!isAuthenticated) {
-    // Redirect to signup if not logged in
-    return <Navigate to="/signup" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={user.role === "admin" ? "/admin/dashboard" : "/"} replace />;
   }
 
   return children;
