@@ -40,6 +40,119 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminUserDetail'
           description: ''
+  /api/cart/:
+    get:
+      operationId: cart_retrieve
+      tags:
+      - cart
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+          description: ''
+  /api/cart/add/:
+    post:
+      operationId: cart_add_create
+      tags:
+      - cart
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddToCart'
+          description: ''
+  /api/cart/checkout/:
+    post:
+      operationId: cart_checkout_create
+      tags:
+      - cart
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Checkout'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Checkout'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Checkout'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkout'
+          description: ''
+  /api/cart/item/{item_id}/:
+    patch:
+      operationId: cart_item_partial_update
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - cart
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateCartItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateCartItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateCartItem'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateCartItem'
+          description: ''
+  /api/cart/item/{item_id}/remove/:
+    delete:
+      operationId: cart_item_remove_destroy
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - cart
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/delete-account/:
     get:
       operationId: delete_account_retrieve
@@ -50,7 +163,26 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAccountResponse'
+          description: ''
+  /api/home/:
+    get:
+      operationId: home_retrieve
+      tags:
+      - home
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Home'
+          description: ''
   /api/login/:
     post:
       operationId: login_create
@@ -162,13 +294,10 @@ paths:
       - products
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/ProductReview'
           application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ProductReview'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/ProductReview'
         required: true
@@ -293,6 +422,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/Register'
           description: ''
+  /api/technician/bookings/:
+    get:
+      operationId: technician_bookings_retrieve
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianBooking'
+          description: ''
+  /api/technician/notifications/:
+    get:
+      operationId: technician_notifications_retrieve
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/technician/review/{booking_id}/:
+    post:
+      operationId: technician_review_create
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - technician
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TechnicianReview'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TechnicianReview'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TechnicianReview'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianReview'
+          description: ''
   /api/token/:
     post:
       operationId: token_create
@@ -349,6 +538,17 @@ paths:
           description: ''
 components:
   schemas:
+    AddToCart:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+      required:
+      - product_id
     AdminUserDetail:
       type: object
       properties:
@@ -371,6 +571,8 @@ components:
           maxLength: 254
         avatar:
           type: string
+          format: uri
+          nullable: true
           readOnly: true
         date_joined:
           type: string
@@ -395,6 +597,19 @@ components:
       - total_bookings
       - total_spent
       - username
+    BookingUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        fullname:
+          type: string
+      required:
+      - fullname
+      - id
+      - username
     Brand:
       type: object
       properties:
@@ -411,6 +626,115 @@ components:
       - category
       - id
       - name
+    Cart:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+      required:
+      - id
+      - is_active
+      - items
+      - total
+      - user
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - id
+      - product
+      - product_name
+      - total_price
+      - unit_price
+    Checkout:
+      type: object
+      properties:
+        address_index:
+          type: integer
+        address: {}
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethodEnum'
+        technician_id:
+          type: integer
+          nullable: true
+        date_time_start:
+          type: string
+          format: date-time
+          nullable: true
+        date_time_end:
+          type: string
+          format: date-time
+          nullable: true
+        payment_done:
+          type: boolean
+          default: false
+        notes:
+          type: string
+      required:
+      - payment_method
+    DeleteAccountResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    Home:
+      type: object
+      properties:
+        top_products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductLanding'
+        top_technicians:
+          type: array
+          items:
+            $ref: '#/components/schemas/TechnicianLanding'
+        suggested_product:
+          allOf:
+          - $ref: '#/components/schemas/ProductLanding'
+          nullable: true
+      required:
+      - suggested_product
+      - top_products
+      - top_technicians
     Login:
       type: object
       properties:
@@ -422,6 +746,28 @@ components:
       required:
       - identifier
       - password
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        is_read:
+          type: boolean
+      required:
+      - created_at
+      - id
+      - message
+      - title
     PaginatedProductList:
       type: object
       required:
@@ -445,6 +791,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Product'
+    PatchedUpdateCartItem:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+    PaymentMethodEnum:
+      enum:
+      - COD
+      - UPI
+      - CARD
+      type: string
+      description: |-
+        * `COD` - Cash on Delivery
+        * `UPI` - UPI
+        * `CARD` - Card
     Product:
       type: object
       properties:
@@ -485,6 +847,8 @@ components:
           readOnly: true
         url:
           type: string
+          format: uri
+          nullable: true
           readOnly: true
       required:
       - average_rating
@@ -509,6 +873,36 @@ components:
       required:
       - id
       - image
+    ProductLanding:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_name:
+          type: string
+          maxLength: 255
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        images:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+          readOnly: true
+      required:
+      - average_rating
+      - id
+      - images
+      - price
+      - product_name
     ProductReview:
       type: object
       properties:
@@ -524,10 +918,11 @@ components:
           minimum: 1
         review_text:
           type: string
-        image:
-          type: string
-          format: uri
-          nullable: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductReviewImage'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -535,8 +930,26 @@ components:
       required:
       - created_at
       - id
+      - images
       - rating
       - username
+    ProductReviewImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        image:
+          type: string
+          format: uri
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - image
+      - uploaded_at
     ProfileStatusEnum:
       enum:
       - inactive
@@ -592,6 +1005,16 @@ components:
         * `user` - User
         * `admin` - Admin
         * `technician` - Technician
+    ServiceStatusEnum:
+      enum:
+      - pending
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `completed` - Completed
+        * `cancelled` - Cancelled
     StatusEnum:
       enum:
       - stock
@@ -612,6 +1035,80 @@ components:
       required:
       - id
       - name
+    TechnicianBooking:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          $ref: '#/components/schemas/BookingUser'
+        date_time_start:
+          type: string
+          format: date-time
+        date_time_end:
+          type: string
+          format: date-time
+        address:
+          nullable: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        service_status:
+          $ref: '#/components/schemas/ServiceStatusEnum'
+        payment_done:
+          type: boolean
+      required:
+      - date_time_end
+      - date_time_start
+      - id
+      - price
+      - user
+    TechnicianLanding:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        fullname:
+          type: string
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        years_of_experience:
+          type: string
+          readOnly: true
+        total_bookings:
+          type: integer
+      required:
+      - avatar
+      - fullname
+      - id
+      - total_bookings
+      - years_of_experience
+    TechnicianReview:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        rating:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - rating
     TechnicianSummary:
       type: object
       properties:
@@ -624,6 +1121,8 @@ components:
           type: string
         avatar:
           type: string
+          format: uri
+          nullable: true
           readOnly: true
         profile_status:
           $ref: '#/components/schemas/ProfileStatusEnum'
@@ -691,6 +1190,14 @@ components:
       required:
       - access
       - refresh
+    UpdateCartItem:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - quantity
   securitySchemes:
     jwtAuth:
       type: http
