@@ -5,19 +5,13 @@ from django.contrib.auth import get_user_model
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import transaction
 from django.db.models import Avg, Count, Max, Sum
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-    IsUserRole,
-    TechnicianUser,
-)
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -36,7 +30,7 @@ from users.models import (
     Profile,
     TechnicianReview,
 )
-from users.permissions import AdminUser
+from users.permissions import AdminUser, IsUserRole, TechnicianUser
 from users.serializers import (
     AddToCartSerializer,
     AdminProfileSerializer,
@@ -44,11 +38,20 @@ from users.serializers import (
     BookingDetailSerializer,
     CartItemSerializer,
     CartSerializer,
+    CheckoutResponseSerializer,
     CheckoutSerializer,
+    DeleteAccountResponseSerializer,
+    EmptyProfileSerializer,
+    EmptyResponseSerializer,
+    HomeSerializer,
     LoginSerializer,
+    NotificationSerializer,
+    ProductLandingSerializer,
     ProductReviewSerializer,
     ProductSerializer,
     RegisterSerializer,
+    TechnicianBookingSerializer,
+    TechnicianLandingSerializer,
     TechnicianProfileSerializer,
     TechnicianReviewSerializer,
     TechnicianSummarySerializer,
@@ -202,58 +205,122 @@ class LoginView(APIView):
         )
 
 
-class ProfileView(APIView):
+class HomeView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = HomeSerializer  # for Swagger/OpenAPI
+
+    def get(self, request):
+        # Top 10 most popular products (using reviews as proxy)
+        top_products = Product.objects.annotate(
+            total_sold=Count("reviews__id")
+        ).order_by("-total_sold")[:10]
+
+        # Top 10 technicians by bookings
+        top_technicians = (
+            Profile.objects.annotate(total_bookings=Count("bookings"))
+            .filter(profile_status="active")
+            .order_by("-total_bookings")[:10]
+        )
+
+        # Suggested product: RO Purifier
+        ro_purifier = Product.objects.filter(
+            product_name__icontains="RO Purifier"
+        ).first()
+
+        data = {
+            "top_products": ProductLandingSerializer(top_products, many=True).data,
+            "top_technicians": TechnicianLandingSerializer(
+                top_technicians, many=True
+            ).data,
+            "suggested_product": (
+                ProductLandingSerializer(ro_purifier).data if ro_purifier else None
+            ),
+        }
+
+        return Response(data)
+
+
+class ProfileView(GenericAPIView):
     permission_classes = [IsAuthenticated]
+    queryset = Profile.objects.select_related("user")
 
-    def get_profile(self, username):
-        try:
-            user = User.objects.get(username=username)
-            profile = Profile.objects.filter(user=user).first()
-            if not profile:
-                return None, None
-            return user, profile
-        except User.DoesNotExist:
-            return None, None
+    # ------------------------------------------------
+    # MUST ALWAYS RETURN A SERIALIZER CLASS
+    # ------------------------------------------------
+    def get_serializer_class(self):
+        request = getattr(self, "request", None)
+        kwargs = getattr(self, "kwargs", {})
 
-    def get_serializer_class(self, request_user, profile_user):
+        # Schema generation / no request
+        if not request or "username" not in kwargs:
+            return EmptyProfileSerializer
+
+        request_user = request.user
+        username = kwargs.get("username")
+
+        user = User.objects.filter(username=username).first()
+        if not user:
+            return EmptyProfileSerializer
+
         if request_user.role == "admin":
             return AdminProfileSerializer
 
-        if request_user.role == "technician" and request_user == profile_user:
+        if request_user.role == "technician" and request_user == user:
             return TechnicianProfileSerializer
 
-        if request_user.role == "user" and request_user == profile_user:
+        if request_user.role == "user" and request_user == user:
             return UserProfileSerializer
 
-        return None
+        # ❗ NEVER return None
+        return EmptyProfileSerializer
 
+    # ------------------------------------------------
+    # GET
+    # ------------------------------------------------
     def get(self, request, username):
-        user, profile = self.get_profile(username)
-        if not user:
-            return Response({"error": "User not found"}, status=404)
+        user = get_object_or_404(User, username=username)
+        profile = get_object_or_404(Profile, user=user)
 
-        serializer_class = self.get_serializer_class(request.user, user)
-        if not serializer_class:
-            return Response({"error": "Permission denied"}, status=403)
+        serializer_class = self.get_serializer_class()
+
+        # Permission enforcement HERE (not in get_serializer_class)
+        if serializer_class is EmptyProfileSerializer:
+            return Response(
+                {"error": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         serializer = serializer_class(profile)
         return Response(serializer.data)
 
+    # ------------------------------------------------
+    # PUT
+    # ------------------------------------------------
     def put(self, request, username):
-        user, profile = self.get_profile(username)
-        if not user:
-            return Response({"error": "User not found"}, status=404)
+        user = get_object_or_404(User, username=username)
+        profile = get_object_or_404(Profile, user=user)
 
-        serializer_class = self.get_serializer_class(request.user, user)
-        if not serializer_class:
-            return Response({"error": "Permission denied"}, status=403)
+        serializer_class = self.get_serializer_class()
 
-        serializer = serializer_class(profile, data=request.data, partial=True)
+        if serializer_class is EmptyProfileSerializer:
+            return Response(
+                {"error": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Profile updated successfully"})
-        return Response(serializer.errors, status=400)
+        serializer = serializer_class(
+            profile,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"message": "Profile updated successfully"},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProductListView(ListAPIView):
@@ -275,20 +342,21 @@ class ProductListView(ListAPIView):
     ordering = ["price"]
 
 
-class ProductReviewCreateUpdateView(APIView):
+class ProductReviewCreateUpdateView(GenericAPIView):
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
+    serializer_class = ProductReviewSerializer
 
     def post(self, request, product_id):
         user = request.user
         product = get_object_or_404(Product, id=product_id)
 
-        # user must have purchased this product
+        # Ensure the user purchased this product
         purchased = OrderItem.objects.filter(order__user=user, product=product).exists()
         if not purchased:
             return Response(
                 {"error": "You can review this product only after purchasing it."},
-                status=400,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         review, created = ProductReview.objects.get_or_create(
@@ -310,7 +378,7 @@ class ProductReviewCreateUpdateView(APIView):
         for img in images:
             ProductReviewImage.objects.create(review=review, image=img)
 
-        serializer = ProductReviewSerializer(review)
+        serializer = self.get_serializer(review)
         return Response(serializer.data)
 
 
@@ -438,172 +506,177 @@ class AdminUserDetailView(APIView):
         )
 
 
-class DeleteAccountView(APIView):
+class DeleteAccountView(GenericAPIView):
     permission_classes = [AllowAny]
+    serializer_class = DeleteAccountResponseSerializer
 
     def get(self, request):
         token = request.GET.get("token")
         if not token:
-            return JsonResponse({"error": "Token required"}, status=400)
+            return Response(
+                {"message": "Token required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            # Verify and check expiration (max_age in seconds = 24h)
-            unsigned = signer.unsign(token, max_age=86400)
+            unsigned = signer.unsign(token, max_age=86400)  # 24h
             user = get_user_model().objects.get(pk=unsigned)
         except SignatureExpired:
-            return JsonResponse({"error": "Link expired"}, status=400)
+            return Response(
+                {"message": "Link expired"}, status=status.HTTP_400_BAD_REQUEST
+            )
         except (BadSignature, get_user_model().DoesNotExist):
-            return JsonResponse({"error": "Invalid link"}, status=400)
+            return Response(
+                {"message": "Invalid link"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # Delete user and profile
         user.delete()
-        return JsonResponse({"message": "Account deleted successfully."}, status=200)
+        return Response(
+            {"message": "Account deleted successfully."}, status=status.HTTP_200_OK
+        )
 
 
-class TechnicianBookingsView(APIView):
+class TechnicianBookingsView(GenericAPIView):
     permission_classes = [IsAuthenticated, TechnicianUser]
+    serializer_class = TechnicianBookingSerializer
 
     def get(self, request):
-        # technician is Profile linked to user
         try:
             profile = request.user.profile
         except Profile.DoesNotExist:
-            return Response({"detail": "Profile not found."}, status=404)
-        bookings = profile.bookings.all().order_by("-date_time_start")
-        data = []
-        for b in bookings:
-            data.append(
-                {
-                    "id": b.pk,
-                    "user": {
-                        "id": b.user.id,
-                        "username": b.user.username,
-                        "fullname": b.user.fullname,
-                    },
-                    "date_time_start": b.date_time_start,
-                    "date_time_end": b.date_time_end,
-                    "address": b.address,
-                    "price": b.price,
-                    "service_status": b.service_status,
-                    "payment_done": b.payment_done,
-                }
+            return Response(
+                {"detail": "Profile not found."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-        return Response(data)
+
+        bookings = profile.bookings.order_by("-date_time_start")
+        serializer = self.get_serializer(bookings, many=True)
+        return Response(serializer.data)
 
 
-class TechnicianNotificationsView(APIView):
+class TechnicianNotificationsView(GenericAPIView):
     permission_classes = [IsAuthenticated, TechnicianUser]
+    serializer_class = NotificationSerializer
 
     def get(self, request):
         profile = request.user.profile
         qs = profile.notifications.order_by("-created_at")
-        data = [
-            {
-                "id": n.pk,
-                "title": n.title,
-                "message": n.message,
-                "created_at": n.created_at,
-                "is_read": n.is_read,
-            }
-            for n in qs
-        ]
-        return Response(data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
 
-class AddToCartView(APIView):
+class AddToCartView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = AddToCartSerializer
 
     def post(self, request):
-        serializer = AddToCartSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         product = get_object_or_404(Product, pk=serializer.validated_data["product_id"])
         qty = serializer.validated_data.get("quantity", 1)
 
         cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
 
-        # get or create cart item; increment quantity if exists
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
             defaults={"quantity": qty, "unit_price": product.price},
         )
+
         if not created:
-            cart_item.quantity = cart_item.quantity + qty
+            cart_item.quantity += qty
             cart_item.save()
 
         return Response(CartSerializer(cart).data, status=status.HTTP_200_OK)
 
 
-class CartDetailView(APIView):
+class CartDetailView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = CartSerializer
 
     def get(self, request):
         cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
-        return Response(CartSerializer(cart).data)
+        serializer = self.get_serializer(cart)
+        return Response(serializer.data)
 
 
-class UpdateCartItemView(APIView):
+# -------------------------------
+# Update Cart Item
+# -------------------------------
+class UpdateCartItemView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = UpdateCartItemSerializer
 
     def patch(self, request, item_id):
         cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
         cart_item = get_object_or_404(CartItem, pk=item_id, cart=cart)
-        serializer = UpdateCartItemSerializer(data=request.data)
+
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         cart_item.quantity = serializer.validated_data["quantity"]
         cart_item.save()
+
         return Response(CartItemSerializer(cart_item).data)
 
 
-class RemoveCartItemView(APIView):
+# -------------------------------
+# Remove Cart Item
+# -------------------------------
+class RemoveCartItemView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = EmptyResponseSerializer
 
     def delete(self, request, item_id):
         cart, _ = Cart.objects.get_or_create(user=request.user, is_active=True)
         cart_item = get_object_or_404(CartItem, pk=item_id, cart=cart)
         mode = request.query_params.get("mode", "all")
-        # default to removing entire item
+
         if mode == "one":
-            # remove just one quantity
             if cart_item.quantity > 1:
                 cart_item.quantity -= 1
                 cart_item.save()
             else:
-                # if quantity becomes 0 → delete item
                 cart_item.delete()
         else:
-            # remove entire item
             cart_item.delete()
 
+        # Return 204 No Content
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class CheckoutView(APIView):
+class CheckoutView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = CheckoutSerializer  # request serializer
 
     @transaction.atomic
     def post(self, request):
+        # -------- CART ----------
         cart = get_object_or_404(Cart, user=request.user, is_active=True)
+
         if not cart.items.exists():
             return Response(
-                {"detail": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Cart is empty."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = CheckoutSerializer(data=request.data)
+        # -------- VALIDATE INPUT ----------
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        # Resolve address
+        # -------- ADDRESS RESOLUTION ----------
         chosen_address = None
         if "address_index" in data:
             idx = data["address_index"]
-            # expect user.address to be a list of address objects OR a single object
             ua = getattr(request.user, "address", None)
+
             if ua is None:
                 return Response(
                     {"detail": "No saved addresses found."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+
             if isinstance(ua, list):
                 try:
                     chosen_address = ua[idx]
@@ -622,39 +695,36 @@ class CheckoutView(APIView):
         else:
             chosen_address = data.get("address")
 
-        # calculate items total
-        items_total = Decimal(0)
-        for it in cart.items.all():
-            items_total += Decimal(it.unit_price) * it.quantity
+        # -------- ITEMS TOTAL ----------
+        items_total = Decimal("0.00")
+        for item in cart.items.all():
+            items_total += Decimal(item.unit_price) * item.quantity
 
-        # technician handling
+        # -------- TECHNICIAN HANDLING ----------
         technician = None
-        technician_fee = Decimal(0)
+        technician_fee = Decimal("0.00")
         booking_obj = None
+
         if data.get("technician_id"):
-            tech = get_object_or_404(Profile, pk=data["technician_id"])
-            technician = tech
-            # calculate duration; prefer price_day; fallback to price_hour
+            technician = get_object_or_404(Profile, pk=data["technician_id"])
+
             start = data["date_time_start"]
             end = data["date_time_end"]
             delta = end - start
-            # days as integer (count partial as full)
-            days = int(ceil(delta.total_seconds() / (24 * 3600)))
-            if tech.price_day:
-                technician_fee = (Decimal(tech.price_day) * Decimal(days)).quantize(
-                    Decimal("0.01")
-                )
-            elif tech.price_hour:
-                hours = int(ceil(delta.total_seconds() / 3600))
-                technician_fee = (Decimal(tech.price_hour) * Decimal(hours)).quantize(
-                    Decimal("0.01")
-                )
-            else:
-                technician_fee = Decimal(0)
 
+            if technician.price_day:
+                days = int(ceil(delta.total_seconds() / (24 * 3600)))
+                technician_fee = Decimal(technician.price_day) * days
+            elif technician.price_hour:
+                hours = int(ceil(delta.total_seconds() / 3600))
+                technician_fee = Decimal(technician.price_hour) * hours
+
+            technician_fee = technician_fee.quantize(Decimal("0.01"))
+
+        # -------- TOTAL ----------
         total = (items_total + technician_fee).quantize(Decimal("0.01"))
 
-        # create Order
+        # -------- CREATE ORDER ----------
         order = Order.objects.create(
             user=request.user,
             cart=cart,
@@ -667,7 +737,7 @@ class CheckoutView(APIView):
             notes=data.get("notes", ""),
         )
 
-        # create order items
+        # -------- ORDER ITEMS ----------
         for item in cart.items.all():
             OrderItem.objects.create(
                 order=order,
@@ -679,9 +749,8 @@ class CheckoutView(APIView):
                 ),
             )
 
-        # If technician selected, create Booking and attach to order.
+        # -------- BOOKING ----------
         if technician:
-            booking_price = technician_fee
             booking_obj = Booking.objects.create(
                 technician=technician,
                 user=request.user,
@@ -689,17 +758,17 @@ class CheckoutView(APIView):
                 date_time_end=data["date_time_end"],
                 address=chosen_address,
                 payment_done=order.payment_done,
-                price=booking_price,
+                price=technician_fee,
                 service_status="pending",
             )
+
             order.booking = booking_obj
             order.save()
 
-            # Notify technician
             Notification.objects.create(
                 recipient=technician,
                 title=f"New booking request (Order {order.pk})",
-                message=f"You have a new booking from {request.user.username}.",
+                message=(f"You have a new booking from {request.user.username}."),
                 metadata={
                     "order_id": order.pk,
                     "booking_id": booking_obj.pk,
@@ -707,50 +776,53 @@ class CheckoutView(APIView):
                 },
             )
 
-        # mark cart inactive (checkout)
+        # -------- FINALIZE CART ----------
         cart.is_active = False
         cart.save()
 
-        # Optionally create a fresh cart for user
         Cart.objects.create(user=request.user, is_active=True)
 
+        # -------- RESPONSE ----------
+        response_data = {
+            "order_id": order.pk,
+            "total": order.total,
+            "payment_done": order.payment_done,
+            "booking_id": booking_obj.pk if booking_obj else None,
+        }
+
         return Response(
-            {
-                "order_id": order.pk,
-                "total": order.total,
-                "payment_done": order.payment_done,
-                "booking_id": booking_obj.pk if booking_obj else None,
-            },
+            CheckoutResponseSerializer(response_data).data,
             status=status.HTTP_201_CREATED,
         )
 
 
-class TechnicianReviewView(APIView):
+class TechnicianReviewView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsUserRole]
+    serializer_class = TechnicianReviewSerializer
 
     def post(self, request, booking_id):
         user = request.user
         booking = get_object_or_404(Booking, id=booking_id, user=user)
 
-        # Only if booking is completed
         if booking.service_status != "completed":
             return Response(
-                {"error": "You can review only completed services."}, status=400
+                {"error": "You can review only completed services."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Only 1 review per booking
         if TechnicianReview.objects.filter(booking=booking).exists():
-            return Response({"error": "You already reviewed this service."}, status=400)
+            return Response(
+                {"error": "You already reviewed this service."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        technician = booking.technician  # profile
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        review = TechnicianReview.objects.create(
-            technician=technician,
-            user=user,
-            booking=booking,
-            rating=request.data.get("rating"),
-            comment=request.data.get("comment", ""),
+        review = serializer.save(
+            technician=booking.technician, user=user, booking=booking
         )
 
-        serializer = TechnicianReviewSerializer(review)
-        return Response(serializer.data, status=201)
+        return Response(
+            self.get_serializer(review).data, status=status.HTTP_201_CREATED
+        )

@@ -1,6 +1,7 @@
 import re
 
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from users.models import (
@@ -9,6 +10,7 @@ from users.models import (
     Brand,
     Cart,
     CartItem,
+    Notification,
     Product,
     ProductImage,
     ProductReview,
@@ -107,6 +109,50 @@ class LoginSerializer(serializers.Serializer):
         return instance  # Login does not update objects
 
 
+class ProductLandingSerializer(serializers.ModelSerializer):
+    images = serializers.SerializerMethodField()
+    average_rating = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ["id", "product_name", "price", "average_rating", "images"]
+
+    @extend_schema_field(
+        serializers.ListField(
+            child=serializers.DictField(child=serializers.CharField())
+        )
+    )
+    def get_images(self, obj):
+        return [{"id": img.id, "url": img.image.url} for img in obj.images.all()]
+
+
+class TechnicianLandingSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+    fullname = serializers.CharField(source="user.fullname")
+    total_bookings = serializers.IntegerField()
+    years_of_experience = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Profile
+        fields = ["id", "fullname", "avatar", "years_of_experience", "total_bookings"]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_avatar(self, obj):
+        return obj.avatar.url if obj.avatar else None
+
+    @extend_schema_field(serializers.CharField())
+    def get_years_of_experience(self, obj):
+        y = obj.years_experience or 0
+        m = obj.months_experience or 0
+        return f"{y}y {m}m"
+
+
+class HomeSerializer(serializers.Serializer):
+    top_products = ProductLandingSerializer(many=True)
+    top_technicians = TechnicianLandingSerializer(many=True)
+    suggested_product = ProductLandingSerializer(allow_null=True)
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     fullname = serializers.CharField(source="user.fullname", required=False)
 
@@ -166,6 +212,16 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
 
 
 class AdminProfileSerializer(UserProfileSerializer):
+    pass
+
+
+class EmptyProfileSerializer(serializers.Serializer):
+    pass
+
+
+class EmptyResponseSerializer(serializers.Serializer):
+    """Used only for schema generation of 204 responses."""
+
     pass
 
 
@@ -230,6 +286,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "url",
         ]
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_url(self, obj):
         return f"/products/{obj.id}/"
 
@@ -260,6 +317,7 @@ class TechnicianSummarySerializer(serializers.ModelSerializer):
             "earnings",
         ]
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):
         return obj.avatar.url if obj.avatar else None
 
@@ -285,6 +343,29 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         return {"id": u.id, "username": u.username, "fullname": u.fullname}
 
 
+class BookingUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    username = serializers.CharField()
+    fullname = serializers.CharField()
+
+
+class TechnicianBookingSerializer(serializers.ModelSerializer):
+    user = BookingUserSerializer(source="user.username")
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id",
+            "user",
+            "date_time_start",
+            "date_time_end",
+            "address",
+            "price",
+            "service_status",
+            "payment_done",
+        ]
+
+
 class AdminUserDetailSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     total_bookings = serializers.IntegerField()
@@ -307,6 +388,7 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
             "avg_rating",
         ]
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):
         profile = getattr(obj, "profile", None)
         return profile.avatar.url if profile and profile.avatar else None
@@ -343,7 +425,7 @@ class UserBookingHistorySerializer(serializers.ModelSerializer):
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.product_name", read_only=True)
     total_price = serializers.DecimalField(
-        source="total_price", max_digits=12, decimal_places=2, read_only=True
+        max_digits=12, decimal_places=2, read_only=True
     )
 
     class Meta:
@@ -360,9 +442,7 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True)
-    total = serializers.DecimalField(
-        source="total", max_digits=12, decimal_places=2, read_only=True
-    )
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = Cart
@@ -384,6 +464,10 @@ class AddToCartSerializer(serializers.Serializer):
 
 class UpdateCartItemSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
+
+
+class DeleteAccountResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
 
 
 class CheckoutSerializer(serializers.Serializer):
@@ -415,7 +499,26 @@ class CheckoutSerializer(serializers.Serializer):
         return attrs
 
 
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = [
+            "id",
+            "title",
+            "message",
+            "created_at",
+            "is_read",
+        ]
+
+
 class TechnicianReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = TechnicianReview
         fields = ["id", "rating", "comment", "created_at"]
+
+
+class CheckoutResponseSerializer(serializers.Serializer):
+    order_id = serializers.IntegerField()
+    total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    payment_done = serializers.BooleanField()
+    booking_id = serializers.IntegerField(allow_null=True)
