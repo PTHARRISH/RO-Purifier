@@ -43,12 +43,15 @@ from users.serializers import (
     DeleteAccountResponseSerializer,
     EmptyProfileSerializer,
     EmptyResponseSerializer,
+    HomeSerializer,
     LoginSerializer,
     NotificationSerializer,
+    ProductLandingSerializer,
     ProductReviewSerializer,
     ProductSerializer,
     RegisterSerializer,
     TechnicianBookingSerializer,
+    TechnicianLandingSerializer,
     TechnicianProfileSerializer,
     TechnicianReviewSerializer,
     TechnicianSummarySerializer,
@@ -200,6 +203,41 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class HomeView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = HomeSerializer  # for Swagger/OpenAPI
+
+    def get(self, request):
+        # Top 10 most popular products (using reviews as proxy)
+        top_products = Product.objects.annotate(
+            total_sold=Count("reviews__id")
+        ).order_by("-total_sold")[:10]
+
+        # Top 10 technicians by bookings
+        top_technicians = (
+            Profile.objects.annotate(total_bookings=Count("bookings"))
+            .filter(profile_status="active")
+            .order_by("-total_bookings")[:10]
+        )
+
+        # Suggested product: RO Purifier
+        ro_purifier = Product.objects.filter(
+            product_name__icontains="RO Purifier"
+        ).first()
+
+        data = {
+            "top_products": ProductLandingSerializer(top_products, many=True).data,
+            "top_technicians": TechnicianLandingSerializer(
+                top_technicians, many=True
+            ).data,
+            "suggested_product": (
+                ProductLandingSerializer(ro_purifier).data if ro_purifier else None
+            ),
+        }
+
+        return Response(data)
 
 
 class ProfileView(GenericAPIView):

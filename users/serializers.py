@@ -109,6 +109,50 @@ class LoginSerializer(serializers.Serializer):
         return instance  # Login does not update objects
 
 
+class ProductLandingSerializer(serializers.ModelSerializer):
+    images = serializers.SerializerMethodField()
+    average_rating = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ["id", "product_name", "price", "average_rating", "images"]
+
+    @extend_schema_field(
+        serializers.ListField(
+            child=serializers.DictField(child=serializers.CharField())
+        )
+    )
+    def get_images(self, obj):
+        return [{"id": img.id, "url": img.image.url} for img in obj.images.all()]
+
+
+class TechnicianLandingSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+    fullname = serializers.CharField(source="user.fullname")
+    total_bookings = serializers.IntegerField()
+    years_of_experience = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Profile
+        fields = ["id", "fullname", "avatar", "years_of_experience", "total_bookings"]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_avatar(self, obj):
+        return obj.avatar.url if obj.avatar else None
+
+    @extend_schema_field(serializers.CharField())
+    def get_years_of_experience(self, obj):
+        y = obj.years_experience or 0
+        m = obj.months_experience or 0
+        return f"{y}y {m}m"
+
+
+class HomeSerializer(serializers.Serializer):
+    top_products = ProductLandingSerializer(many=True)
+    top_technicians = TechnicianLandingSerializer(many=True)
+    suggested_product = ProductLandingSerializer(allow_null=True)
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     fullname = serializers.CharField(source="user.fullname", required=False)
 

@@ -168,6 +168,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeleteAccountResponse'
           description: ''
+  /api/home/:
+    get:
+      operationId: home_retrieve
+      tags:
+      - home
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Home'
+          description: ''
   /api/login/:
     post:
       operationId: login_create
@@ -701,6 +716,25 @@ components:
           type: string
       required:
       - message
+    Home:
+      type: object
+      properties:
+        top_products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductLanding'
+        top_technicians:
+          type: array
+          items:
+            $ref: '#/components/schemas/TechnicianLanding'
+        suggested_product:
+          allOf:
+          - $ref: '#/components/schemas/ProductLanding'
+          nullable: true
+      required:
+      - suggested_product
+      - top_products
+      - top_technicians
     Login:
       type: object
       properties:
@@ -839,6 +873,36 @@ components:
       required:
       - id
       - image
+    ProductLanding:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_name:
+          type: string
+          maxLength: 255
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        average_rating:
+          type: number
+          format: double
+          readOnly: true
+        images:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+          readOnly: true
+      required:
+      - average_rating
+      - id
+      - images
+      - price
+      - product_name
     ProductReview:
       type: object
       properties:
@@ -1001,6 +1065,30 @@ components:
       - id
       - price
       - user
+    TechnicianLanding:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        fullname:
+          type: string
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        years_of_experience:
+          type: string
+          readOnly: true
+        total_bookings:
+          type: integer
+      required:
+      - avatar
+      - fullname
+      - id
+      - total_bookings
+      - years_of_experience
     TechnicianReview:
       type: object
       properties:

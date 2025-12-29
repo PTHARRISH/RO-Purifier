@@ -8,6 +8,7 @@ from users.views import (
     CartDetailView,
     CheckoutView,
     DeleteAccountView,
+    HomeView,
     LoginView,
     ProductDetailView,
     ProductListView,
@@ -31,6 +32,7 @@ urlpatterns = [
     ),
     path("register/admin/", AdminRegisterView.as_view(), name="admin-register"),
     path("login/", LoginView.as_view(), name="login"),
+    path("home/", HomeView.as_view(), name="home-view"),
     path("profile/<str:username>/", ProfileView.as_view(), name="profile_detail"),
     path("products/", ProductListView.as_view(), name="product-list"),
     path(
