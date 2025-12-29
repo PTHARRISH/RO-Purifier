@@ -629,13 +629,15 @@ components:
           $ref: '#/components/schemas/ProfileStatusEnum'
         years_experience:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           nullable: true
         months_experience:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           nullable: true
         avg_rating:
           type: number
