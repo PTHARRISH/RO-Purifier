@@ -55,18 +55,24 @@ export default function TechnicianCard() {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
-      {technicians.map((tech, index) => (
-        <SingleTechnicianCard key={tech.id} technician={tech} index={index} />
-      ))}
-    </div>
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        {technicians.map((tech, index) => (
+          <SingleTechnicianCard
+            key={tech.id}
+            technician={tech}
+            index={index}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
 function SingleTechnicianCard({ technician, index }) {
   if (!technician) {
     return (
-      <div className="w-full h-72 flex items-center justify-center p-4 text-gray-500 text-xs bg-gray-50 rounded-2xl shadow-lg border">
+      <div className="w-full min-h-[18rem] flex items-center justify-center p-4 text-gray-500 text-xs bg-gray-50 rounded-2xl shadow border">
         Technician data missing
       </div>
     );
@@ -74,70 +80,104 @@ function SingleTechnicianCard({ technician, index }) {
 
   return (
     <motion.div
-      className="w-full h-72 rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col"
-      initial={{ y: 15, opacity: 0 }}
+      className="
+        bg-white rounded-2xl shadow-md border border-gray-100
+        flex flex-col overflow-hidden
+        transition-all
+      "
+      initial={{ y: 16, opacity: 0 }}
       whileInView={{ y: 0, opacity: 1 }}
-      whileHover={{ y: -6 }}
+      whileHover={{ y: -4 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
     >
-      <div className="relative h-40 p-2 overflow-hidden rounded-t-2xl">
+      {/* IMAGE */}
+      <div className="relative h-36 sm:h-40 md:h-44 p-2">
         <img
           src={technician.image}
           alt={technician.name}
           className="w-full h-full object-cover rounded-xl"
         />
+
         {technician.availableToday && (
-          <span className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md flex items-center gap-1">
-            <TbCalendarCheck className="w-3 h-3" /> Available Today
+          <span className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shadow">
+            <TbCalendarCheck className="w-3 h-3" />
+            Available Today
           </span>
         )}
       </div>
 
-      <div className="flex-1 p-4 flex flex-col justify-between bg-white rounded-b-2xl">
-        <div className="pb-2">
-          <h3 className="font-bold text-sm leading-5 text-gray-900">{technician.name}</h3>
-          <div className="flex items-center gap-2 text-xs text-gray-700 mt-1">
-            <div className="flex items-center gap-1">
-              <FiStar className="w-3 h-3 text-yellow-400" />
-              {technician.rating} ({technician.reviews})
+      {/* CONTENT */}
+      <div className="flex-1 p-4 flex flex-col justify-between">
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-gray-900">
+            {technician.name}
+          </h3>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-700 mt-1">
+            <div className="flex items-center gap-1 bg-yellow-100 px-2 py-0.5 rounded-full">
+              <FiStar className="text-yellow-500 w-3 h-3" />
+              {technician.rating}
+              <span className="text-gray-500">({technician.reviews})</span>
             </div>
-            <span>• {technician.experience} yrs</span>
+            <span className="text-gray-500">
+              • {technician.experience} yrs
+            </span>
           </div>
-          <div className="text-xs text-gray-500 mt-1">{technician.location}</div>
+
+          <p className="text-xs text-gray-500 mt-1">
+            {technician.location}
+          </p>
         </div>
 
-        <div className="flex flex-wrap gap-1 text-xs text-gray-700">
+        {/* SERVICES */}
+        <div className="flex flex-wrap gap-1 mt-3">
           {technician.services?.map((service, idx) => (
             <span
               key={idx}
-              className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"
+              className="
+                text-xs px-2 py-0.5
+                bg-blue-50 text-blue-700
+                rounded-full
+              "
             >
               {service}
             </span>
           ))}
         </div>
 
-        <div className="mt-2 text-sm font-semibold text-gray-900">
+        {/* PRICE */}
+        <div className="mt-3 text-sm font-semibold text-gray-900">
           ₹{technician.startingPrice} onwards
         </div>
 
-        <div className="pt-2 flex gap-2">
+        {/* ACTIONS */}
+        <div className="mt-4 flex gap-2">
           <motion.button
-            whileHover={{ scale: 1.04 }}
+            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.95 }}
-            className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-700 text-sm py-2 rounded-full shadow hover:bg-gray-200"
+            className="
+              flex-1 flex items-center justify-center gap-2
+              bg-gray-100 text-gray-700
+              py-2 rounded-full text-sm
+              hover:bg-gray-200 transition
+            "
           >
             <FiEye className="w-4 h-4" />
-            View Profile
+            View
           </motion.button>
 
           <motion.button
-            whileHover={{ scale: 1.04 }}
+            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.95 }}
-            className="flex-1 flex items-center justify-center gap-2 bg-green-500 text-white text-sm py-2 rounded-full shadow hover:bg-green-600"
+            className="
+              flex-1 flex items-center justify-center gap-2
+              bg-green-500 text-white
+              py-2 rounded-full text-sm
+              hover:bg-green-600 transition
+            "
           >
-            Book Now
+            Book
           </motion.button>
         </div>
       </div>

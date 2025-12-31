@@ -1,9 +1,10 @@
+// src/Authentication/SignupUser.jsx
 import React, { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import Input from "../reusableComponents/Input";
 import { registerUser } from "../Services/authService";
 
-export default function Signup() {
+export default function SignupUser() {
   const [form, setForm] = useState({
     fullname: "", username: "", email: "", mobile: "", password: "", confirm_password: ""
   });
@@ -29,12 +30,24 @@ export default function Signup() {
     if (!validateForm()) return;
     setIsSubmitting(true);
     setErrors({});
+    
     try {
-      await registerUser(form);
-      navigate("/login", { state: { message: "User account created successfully! Please login." } });
+      // ✅ User registration with role: "user"
+      await registerUser({
+        ...form,
+        role: "user"
+      });
+      navigate("/login", { 
+        state: { 
+          message: "User account created successfully! Please login to continue shopping." 
+        } 
+      });
     } catch (error) {
+      console.error("❌ REGISTRATION ERROR:", error.response?.data);
       setErrors({
-        general: error.response?.data?.detail || error.response?.data?.error || "Registration failed. Please try again."
+        general: error.response?.data?.detail || 
+                 error.response?.data?.error || 
+                 "Registration failed. Please try again."
       });
     } finally {
       setIsSubmitting(false);
@@ -59,9 +72,9 @@ export default function Signup() {
             </svg>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent mb-2">
-            Create Account
+            Join ShopEase
           </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-600">Join ShopEase as a user</p>
+          <p className="text-sm sm:text-base md:text-lg text-gray-600">Create your shopper account</p>
         </div>
 
         {/* Success Message */}
@@ -73,7 +86,6 @@ export default function Signup() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-          
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Full Name" name="fullname" placeholder="John Doe" value={form.fullname} onChange={handleInputChange} error={errors.fullname} disabled={isSubmitting} />
             <Input label="Username" name="username" placeholder="johndoe123" value={form.username} onChange={handleInputChange} error={errors.username} disabled={isSubmitting} />
@@ -95,18 +107,36 @@ export default function Signup() {
             </div>
           )}
 
-          <button type="submit" disabled={isSubmitting} className={`w-full py-4 px-6 rounded-2xl font-bold text-lg sm:text-xl flex items-center justify-center space-x-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] ${isSubmitting ? "bg-gray-400 cursor-not-allowed opacity-60" : "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white"}`}>
-            {isSubmitting ? <div className="w-6 h-6 border-2 border-white/80 border-t-white rounded-full animate-spin" /> : "Create Account"}
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className={`w-full py-4 px-6 rounded-2xl font-bold text-lg sm:text-xl flex items-center justify-center space-x-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+              isSubmitting 
+                ? "bg-gray-400 cursor-not-allowed opacity-60" 
+                : "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white"
+            }`}
+          >
+            {isSubmitting ? (
+              <div className="w-6 h-6 border-2 border-white/80 border-t-white rounded-full animate-spin" />
+            ) : (
+              "Create User Account"
+            )}
           </button>
         </form>
 
         {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-gray-200 text-center space-y-2">
-          <p className="text-sm sm:text-base text-gray-700 font-semibold">
-            Already have an account?{' '}
-            <Link to="/login" className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-all">Sign in →</Link>
-          </p>
-        </div>
+<div className="mt-8 pt-6 border-t border-gray-200 text-center">
+  <p className="text-sm sm:text-base text-gray-700 font-semibold">
+    Already have an account?{" "}
+    <Link
+      to="/login"
+      className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-all"
+    >
+      Sign in →
+    </Link>
+  </p>
+</div>
+
       </div>
     </div>
   );

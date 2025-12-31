@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion"; // ✅ Added missing import
+import { motion } from "framer-motion";
 import { FaNetworkWired, FaUndoAlt, FaCheckCircle, FaGift } from "react-icons/fa";
 
 export default function FeatureList() {
@@ -11,21 +11,26 @@ export default function FeatureList() {
   ];
 
   return (
-    <div className="py-12 sm:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+    <div className="py-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         {serviceFeatures.map((feature, index) => (
           <motion.div
             key={index}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: index * 0.1 }}
             viewport={{ once: true }}
-            className="flex flex-col items-center text-center p-6 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+            transition={{ duration: 0.5, delay: index * 0.1 }}
+            className="
+              bg-white rounded-2xl shadow-md
+              p-6 flex flex-col items-center
+              text-center
+              hover:shadow-xl transition
+            "
           >
-            <div className="text-blue-500 text-4xl mb-4">
+            <div className="text-blue-600 text-3xl sm:text-4xl mb-3">
               <feature.icon />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
               {feature.name}
             </h3>
           </motion.div>
