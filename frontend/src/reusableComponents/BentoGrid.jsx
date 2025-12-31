@@ -2,123 +2,77 @@ import { motion } from "framer-motion";
 
 export default function BentoGrid() {
   return (
-    <div className="flex h-full w-full items-center justify-center p-4">
+    <section className="w-full overflow-x-hidden px-4 py-12">
       <div
         className="
-        grid h-full w-full 
-        grid-cols-3 grid-rows-2 
-        gap-4 p-4 rounded-lg
-      "
+          max-w-7xl mx-auto
+          grid grid-cols-1
+          md:grid-cols-3 md:grid-rows-2
+          gap-4
+        "
       >
-        {/* 1️⃣ LEFT TALL CARD - Exchange Offer */}
-        <motion.div
-          className="
-            col-span-1 row-span-2 relative rounded-xl overflow-hidden text-white
-          "
-          style={{
-            backgroundImage:
-              "url('https://i.ibb.co/0KBJyVf/water-purifier-1.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="absolute inset-0 bg-black/40"></div>
+        {/* Left Tall */}
+        <Card
+          className="md:row-span-2"
+          title="Exchange Your Old Purifier"
+          desc="Save up to 30% when you trade in your old RO system."
+          img="https://i.ibb.co/0KBJyVf/water-purifier-1.jpg"
+          btn="Exchange Now"
+        />
 
-          <div className="relative p-6 flex flex-col h-full justify-end">
-            <h2 className="text-2xl font-bold">Exchange Your Old Purifier</h2>
-            <p className="mt-2">
-              Save up to 30% when you trade in your old RO system. Keep your
-              home healthy with the latest models.
-            </p>
+        {/* Top Middle */}
+        <Card
+          title="Experience the Freshness"
+          desc="This season, stay hydrated & save big!"
+          img="https://i.ibb.co/xMf8sYb/water-drop-bg.jpg"
+          btn="Grab Offers"
+        />
 
-            <button className="mt-4 bg-white text-black font-semibold px-4 py-2 rounded-lg w-fit">
-              Exchange Now
-            </button>
-          </div>
-        </motion.div>
+        {/* Right Tall */}
+        <Card
+          className="md:row-span-2"
+          title="Latest RO Purifiers"
+          desc="Energy-efficient & stylish designs."
+          img="https://i.ibb.co/6mSbMZC/ro-purifier-modern.jpg"
+          btn="Explore"
+        />
 
-        {/* 2️⃣ TOP MIDDLE - Freshness */}
-        <motion.div
-          className="
-            col-span-1 row-span-1 relative rounded-xl overflow-hidden text-white
-          "
-          style={{
-            backgroundImage:
-              "url('https://i.ibb.co/xMf8sYb/water-drop-bg.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="absolute inset-0 bg-black/40"></div>
-
-          <div className="relative p-6">
-            <h2 className="text-xl font-bold">Experience the Freshness</h2>
-            <p className="mt-2">This Season, Stay Hydrated & Save Big!</p>
-
-            <button className="mt-4 bg-white text-black font-semibold px-4 py-2 rounded-lg w-fit">
-              Grab Offers
-            </button>
-          </div>
-        </motion.div>
-
-        {/* 3️⃣ RIGHT TALL - Latest RO Purifiers */}
-        <motion.div
-          className="
-            col-span-1 row-span-2 relative rounded-xl overflow-hidden text-white
-          "
-          style={{
-            backgroundImage:
-              "url('https://i.ibb.co/6mSbMZC/ro-purifier-modern.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="absolute inset-0 bg-black/40"></div>
-
-          <div className="relative p-6 flex flex-col h-full justify-end">
-            <h2 className="text-2xl font-bold">
-              Discover Our Latest RO Purifiers
-            </h2>
-            <p className="mt-2">
-              Energy-efficient, compact, and stylish. Designed for modern homes.
-            </p>
-
-            <button className="mt-4 bg-white text-black font-semibold px-4 py-2 rounded-lg w-fit">
-              Explore Exchange Offers
-            </button>
-          </div>
-        </motion.div>
-
-        {/* 4️⃣ BOTTOM MIDDLE - Service Booking */}
-        <motion.div
-          className="
-            col-span-1 row-span-1 relative rounded-xl overflow-hidden text-white
-          "
-          style={{
-            backgroundImage:
-              "url('https://i.ibb.co/4R6HsxN/technician-ro.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="absolute inset-0 bg-black/40"></div>
-
-          <div className="relative p-6">
-            <h2 className="text-xl font-bold">Book a Technician</h2>
-            <p className="mt-2">
-              Certified technicians at your doorstep — fast & reliable service.
-            </p>
-
-            <button className="mt-4 bg-white text-black font-semibold px-4 py-2 rounded-lg w-fit">
-              Book Service
-            </button>
-          </div>
-        </motion.div>
+        {/* Bottom Middle */}
+        <Card
+          title="Book a Technician"
+          desc="Certified experts at your doorstep."
+          img="https://i.ibb.co/4R6HsxN/technician-ro.jpg"
+          btn="Book Service"
+        />
       </div>
-    </div>
+    </section>
+  );
+}
+
+function Card({ title, desc, img, btn, className = "" }) {
+  return (
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      className={`
+        relative rounded-xl overflow-hidden
+        text-white min-h-[260px]
+        w-full max-w-full
+        ${className}
+      `}
+      style={{
+        backgroundImage: `url(${img})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative h-full p-5 flex flex-col justify-end">
+        <h3 className="text-lg sm:text-xl font-bold">{title}</h3>
+        <p className="text-sm mt-2">{desc}</p>
+        <button className="mt-4 bg-white text-black px-4 py-2 rounded-lg w-fit">
+          {btn}
+        </button>
+      </div>
+    </motion.div>
   );
 }
